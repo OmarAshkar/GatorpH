@@ -6,7 +6,7 @@ Date: 2025-10-30
 Author: Omar I. Elashkar [aut, cre], Kyle Kasparian [aut]
 Maintainer: Omar I. Elashkar <omar.i.elashkar@gmail.com>
 Description: GatorpH 
-License: MIT 
+License: MIT + file LICENSE
 RoxygenNote: 7.3.3
 Encoding: UTF-8
 Dependency: R (>= 4.1.0)
@@ -27,3 +27,5 @@ Suggests:
     testthat (>= 3.0.0), 
     pracma (>= 2.4.2)
 Config/testthat/edition: 3
+URL: https://github.com/OmarAshkar/GatorpH
+BugReports: https://github.com/OmarAshkar/GatorpH/issues
