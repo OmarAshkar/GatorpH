@@ -1,0 +1,29 @@
+Package: GatorpH
+Type: Package
+Title: Quantification of Oral pH Dynamics
+Version: 1.0
+Date: 2025-10-30
+Author: Omar I. Elashkar [aut, cre], Kyle Kasparian [aut]
+Maintainer: Omar I. Elashkar <omar.i.elashkar@gmail.com>
+Description: GatorpH 
+License: MIT 
+RoxygenNote: 7.3.3
+Encoding: UTF-8
+Dependency: R (>= 4.1.0)
+Imports:
+    dplyr (>= 1.1.0),
+    ggplot2 (>= 4.0.1),
+    rlang (>= 1.1.7),
+    rxode2 (>= 5.0.1),
+    nlmixr2 (>= 5.0.0),
+    reactable (>= 0.4.4),
+    shiny (>= 1.12.0),
+    checkmate (>= 2.0.0),
+    tibble (>= 3.1.0),
+    readxl,
+    janitor,
+    tidyr
+Suggests: 
+    testthat (>= 3.0.0), 
+    pracma (>= 2.4.2)
+Config/testthat/edition: 3
