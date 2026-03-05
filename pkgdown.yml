@@ -1,0 +1,8 @@
+pandoc: 3.1.11
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles: {}
+last_built: 2026-03-05T21:01Z
+urls:
+  reference: https://omarashkar.github.io/GatorpH/reference
+  article: https://omarashkar.github.io/GatorpH/articles
