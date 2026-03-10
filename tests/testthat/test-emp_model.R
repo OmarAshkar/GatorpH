@@ -3,6 +3,13 @@ test_that("make_covariates",{
     parse_covariate(c(1), model = kpd_mod()) |> expect_no_error()
 
     factor_to_numeric(c("A", "B", "C", "A")) |> expect_equal(c(1, 2, 3, 1))
+    
+    # no covariates
+    parse_covariate(c(1:3), model = kpd_mod(), 
+        parameters = NULL, 
+        fixed_effects = NULL
+    ) |> expect_no_error()
+
 })
 
 test_that("simulate single subject", {
@@ -50,7 +57,7 @@ test_that("Naive pool single sub", {
     dat <- simulate_steph_curve(
         kpd_mod(0.8, 0.8, 0.1, 0.8),
         nsub = 1,
-        baseline = 5,
+        baseline = 7,
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
     )
@@ -61,7 +68,9 @@ test_that("Naive pool single sub", {
         dat,
         model = kpd_mod(0.8, 0.8, 0.1, 0.8),
         amt = 100,
-        estmethod = "bobyqa"
+        estmethod = "uobyqa", 
+        cov_params = "ks",
+        cov_fixedeffects = "t.ks"
     )
 
     fit_individual_plot(fit) |> expect_no_error()
@@ -99,7 +108,7 @@ test_that("Naive pool multiple subs, multiple groups", {
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
     ) |> dplyr::mutate(group = "B", group_code = 2) |> 
-        dplyr::mutate(id = as.factor(as.numeric(as.character(id)) + 30))
+        dplyr::mutate(id = id + 30)
 
     dat <- dplyr::bind_rows(dat, dat2)
 
@@ -109,7 +118,7 @@ test_that("Naive pool multiple subs, multiple groups", {
         dat,
         model = kpd_mod(0.8, 0.8, 0.1, 0.8),
         amt = 100,
-        estmethod = "bobyqa"
+        estmethod = "uobyqa"
     )
 
     fit_individual_plot(fit) |> expect_no_error()
@@ -154,7 +163,7 @@ test_that("NLME fit 1", {
         dat,
         model = kpd_mod(0.8, 0.8, 0.1, 0.8, 1, 0.1, 0.1, 0.1, 0.1, 0.01),
         amt = 100,
-        estmethod = "focei",
+        estmethod = "saem",
         dose_time = 5
     )
 
@@ -366,7 +375,7 @@ test_that("nlme birkhed", {
         d,
         model = kpd_mod(),
         amt = 100,
-        estmethod = "bobyqa",
+        estmethod = "uobyqa",
         dose_time = 5
     )
 
@@ -424,7 +433,7 @@ test_that("fejeskov", {
         d,
         model = kpd_mod(),
         amt = 100,
-        estmethod = "bobyqa",
+        estmethod = "uobyqa",
         dose_time = 0+0.01
     )
 
@@ -449,8 +458,9 @@ test_that("fejeskov", {
         d,
         model = kpd_mod(),
         amt = 100,
-        estmethod = "focei",
-        dose_time = 0+0.01
+        estmethod = "saem",
+        dose_time = 0+0.01,
+        covmethod = "linFim"
     )
     fit_individual_plot(fit)
     pHdatnlme <- pHMetrics_from_fit(

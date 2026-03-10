@@ -6,22 +6,24 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
         t.kde = log(kde) # elimination rate constant (1/h) from the virtual compartment KDE
         t.kd = log(kd)
         t.ks = log(ks)
-        gamma = fix(gamma) # Hill coefficient
+        t.gamma = log(gamma) # Hill coefficient
 
         eta.edk50 ~ eta.edk50
         eta.kde ~ eta.kde
         eta.kd ~ eta.kd
         eta.ks ~ eta.ks
+        # eta.gamma ~ 0.1
 
         sigma_add <- sigma_add
     })
 
     rxode2::model({
 
-        edk50 <- exp(t.edk50 + (1 - cov_edk50) + eta.edk50)
-        kde <- exp(t.kde + (1 - cov_kde) + eta.kde)
-        kd <- exp(t.kd + (1 - cov_kd) + eta.kd)
-        ks <- exp(t.ks + (1 - cov_ks) + eta.ks)
+        edk50 <- exp(t.edk50  + eta.edk50)
+        kde <- exp(t.kde +  eta.kde)
+        kd <- exp(t.kd +  eta.kd)
+        ks <- exp(t.ks +  eta.ks)
+        gamma <- exp(t.gamma)
 
 
         # depot(0) = amt
@@ -29,8 +31,9 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
         resp(0) = ks/kd # Initial condition for response
 
         d/dt(depot) = -kde * depot
-        IR = kde * depot
-        d/dt(resp) = ks * (1 - (IR^gamma)/ (edk50^gamma + (IR^gamma))) - kd * resp
+
+        IR = kde * depot # drug elimiation rate 
+        d/dt(resp) = ks  * (1 - (IR)^gamma / (edk50^gamma + (IR)^gamma)) - kd*resp 
 
         resp ~ add(sigma_add)
 
@@ -50,22 +53,32 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
 }
 
 
-kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1){
+# mlx/Ooi parameterization
+kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1, 
+    eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
     rxode2::ini({
         t.edk50 = log(edk50) # dose producing 50% of Emax
         t.kde = log(kde) # elimination rate constant (1/h) from the virtual compartment KDE
         t.kd = log(kd)
         t.ks = log(ks)
-        gamma = fix(gamma) # Hill coefficient
+        t.gamma = log(gamma) # Hill coefficient
+
+        eta.edk50 ~ eta.edk50
+        eta.kde ~ eta.kde
+        eta.kd ~ eta.kd
+        eta.ks ~ eta.ks
+        # eta.gamma ~ 0.1
+
+        sigma_add <- sigma_add
     })
 
     rxode2::model({
 
-        edk50 <- exp(t.edk50 + eta.edk50)
+        edk50 <- exp(t.edk50 +  eta.edk50)
         kde <- exp(t.kde + eta.kde)
         kd <- exp(t.kd + eta.kd)
         ks <- exp(t.ks + eta.ks)
-
+        gamma <- exp(t.gamma)
 
         # depot(0) = amt
         # ks <- baseline * kd
@@ -73,25 +86,13 @@ kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1){
 
         d/dt(depot) = -kde * depot
         IR = kde * depot
-        d/dt(resp) = ks * (1 - (IR^gamma)/ (edk50^gamma + (IR^gamma))) - kd * resp
+        d/dt(resp) = ks * (1 - depot^gamma/(edk50^gamma + depot^gamma) ) - kd*resp
 
+        resp ~ add(sigma_add)
 
-        auc(0) = 0
-        # area under the curve below pH
-        if (resp < 5.4) {
-            d / dt(auc) = resp # accumulate AUC when below threshold
-        }
-
-        # time below pH
-        # time_under_ph(0) = 0
-        # if (resp < 5.4) {
-        #     d / dt(time_under_ph) = 0.1
-        # }
     })
 
 }
-
-
 
 turnover_stim_breakdown_mod <- function(){
     rxode2::ini({
@@ -862,11 +863,13 @@ digitizeread <- function(x) {
 #' @return nlmixr2 fit object.
 #' @author Omar I. Elashkar
 #' @export
-fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei", dose_time = 5) {
+fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei", dose_time = 5,
+  cov_params = c("kd", "kde", "edk50", "gamma"), cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma")
+) {
   check_data(data, sim = TRUE)
   checkmate::assertNumber(amt, finite = TRUE)
   checkmate::assertLogical(stratify, len = 1)
-  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "bobyqa"))
+  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "uobyqa"))
   model <- rxensure(model)
   checkmate::assertNumber(dose_time, finite = TRUE, upper = Inf, lower = 0)
 
@@ -916,13 +919,19 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     dplyr::arrange(id, time)
 
   uniqueids <- unique(data$id)
-  model <- parse_covariate(unique(data$group_code), model)
 
-  if (estmethod == "bobyqa") {
+  if(length(uniqueids) > 1 && length(unique(data$group_code)) > 1){
+    model <- parse_covariate(unique(data$group_code), model, parameters= cov_params, 
+      fixed_effects = cov_fixedeffects)
+  } else{
+    warning("Only one group or one subject in the data. Not including group covariate in the model.")
+  }
+
+  if (estmethod == "uobyqa") {
     finalFit <- nlmixr2est::nlmixr2(
-      zeroRe(model),
+      zeroRe(model, which = "omega"),
       data,
-      est = "bobyqa"
+      est = "uobyqa"
     )
   } else {
     if (length(uniqueids) == 1) {
@@ -934,7 +943,7 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     # finalFit <- nlmixr2est::nlmixr2(
     #   rxode2::zeroRe(model),
     #   data,
-    #   est = "bobyqa"
+    #   est = "uobyqa"
     # )
 
     # model <- finalFit |> 
@@ -953,14 +962,11 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     if(estmethod == "focei"){
       ctrl <- nlmixr2est::foceiControl(
         maxOuterIterations = 100,
-        maxInnerIterations = 100,
-        covMethod = ""
+        maxInnerIterations = 100
       )
     } else if(estmethod == "saem"){
       ctrl <- nlmixr2est::saemControl()
-    } else {
-      ctrl <- nlmixr2est::bobyqaControl(covMethod = "", maxfun = 10000)
-    }
+    } 
 
     finalFit <- nlmixr2est::nlmixr2(
       model, 
@@ -971,7 +977,7 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
   }
 
   finalFit |> 
-    mutate(ID = as.numeric(as.character(.data$ID)))|>
+    dplyr::mutate(ID = as.numeric(as.character(.data$ID)))|>
     # readd groups
     dplyr::left_join(group_info, by = c("ID" = "id"))
 }
@@ -1110,7 +1116,7 @@ pHMetrics_from_fit <- function(
   nsub <- length(uniqueids)
   time <- seq(time_start, time_end, by = step)
   estMethod <- x$est
-  onlymean <- estMethod == "bobyqa"
+  onlymean <- estMethod == "uobyqa"
 
   # fit_individual_plot(x)
 
@@ -1124,7 +1130,7 @@ pHMetrics_from_fit <- function(
     tibble::rownames_to_column("name") |>
     dplyr::select(name, Estimate) |>
     tidyr::pivot_wider(names_from = "name", values_from = "Estimate") |> 
-    dplyr::select("t.edk50", "t.kde", "t.kd", "t.ks")
+    dplyr::select("t.edk50", "t.kde", "t.kd", "t.ks", "t.gamma")
   if(length(unique(x$origData$group_code)) > 1){
     icovDf <- as.data.frame(x) |> 
       dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
@@ -1141,7 +1147,7 @@ pHMetrics_from_fit <- function(
       dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
       dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
       # add covariate manually 
-      mutate(cov_ks = 0, cov_edk50 = 0, cov_kd = 0, cov_kde = 0) |>
+      mutate(cov_ks = 0, cov_edk50 = 0, cov_kd = 0, cov_kde = 0, cov_gamma = 0) |>
       tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
         names_to = "covariate", values_to = "value") |>
       dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
@@ -1168,6 +1174,7 @@ pHMetrics_from_fit <- function(
       name == "t.kde" ~ fixedparamdf$t.kde,
       name == "t.kd" ~ fixedparamdf$t.kd,
       name == "t.ks" ~ fixedparamdf$t.ks,
+      name == "t.gamma" ~ fixedparamdf$t.gamma,
       TRUE ~ est
     ))
 
@@ -1231,12 +1238,13 @@ pHMetrics_from_fit <- function(
   
   # Get original groups from x$origData
   orig_groups <- icovDf |>
-    dplyr::select("ID", "group") |>
+    dplyr::select("ID", "group", "group_code") |>
     dplyr::distinct() |> 
     dplyr::mutate(id = as.numeric(as.character(.data$ID))) |>
     dplyr::select(-"ID")
   
   simRes <- simRes |>
+    dplyr::select(-dplyr::starts_with("group"), -dplyr::starts_with("group_code")) |>
     dplyr::left_join(orig_groups, by = c("id" = "id")) 
 
   # no matter if pooled or not, all original groups must have calculations
@@ -1296,9 +1304,9 @@ pHMetrics_from_fit <- function(
   derivedDf <-  dplyr::left_join(
       derivedDf,
       paramsdf |>
-        dplyr::select("ID", "edk50", "kde", "kd", "ks", "group") |>
+        dplyr::select("ID", "edk50", "kde", "kd", "ks", "gamma", "group") |>
         dplyr::group_by(.data$ID, .data$group) |>
-        dplyr::summarize(across(c("edk50", "kde", "kd", "ks"), mean), .groups = "keep") |>
+        dplyr::summarize(across(c("edk50", "kde", "kd", "ks", "gamma"), mean), .groups = "keep") |>
         dplyr::ungroup() |>
         dplyr::distinct(),
       by = c("ID" = "ID", "group" = "group")
@@ -1309,7 +1317,7 @@ pHMetrics_from_fit <- function(
   if(onlymean){
     derivedDf <- derivedDf |> 
       dplyr::group_by(.data$group, .data$auc) |>
-      dplyr::summarize(across(c("edk50", "kde", "kd", "ks", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation"), mean), .groups = "keep") |>
+      dplyr::summarize(across(c("edk50", "kde", "kd", "ks", "gamma", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation"), mean), .groups = "keep") |>
       dplyr::ungroup() |>
       dplyr::mutate(ID = ".")
     stopifnot(nrow(derivedDf) == length(unique(x$origData$group_code)))
@@ -1403,7 +1411,7 @@ avg_to_pHdata <- function(x) {
 add_covariate_effect <- function(model, covariate, parameters){
   checkmate::assertClass(model, "rxode2")
   checkmate::assertChoice(covariate, choices = c("flowrate", "buffering", "substance"))
-  checkmate::assertChoice(parameters, choices = c("edk50", "kde", "kd", "ks"))
+  checkmate::assertChoice(parameters, choices = c("edk50", "kde", "kd", "ks", "gamma"))
 
 
 }
@@ -1434,12 +1442,36 @@ factor_to_numeric <- function(x) {
   }
 }
 
+#' Multi-level Categorical Covariate Effects into NLME Model
+#' @description Adds multi-level categorical covariate effects into an NLME model by modifying the model's initial parameter estimates and model code to include covariate effects for specified parameters.
+#' @param groups A vector of group identifiers (numeric, factor, or character) for each subject. The first unique value is treated as the reference group.
+#' @param model An rxode2 model object to be modified.
+#' @param cov_name The base name for the covariate parameters to be added (default is "group_code"). The actual parameter names will be constructed as "cov_parameter_group".
+#' @param parameters A vector of parameter names (e.g., c("edk50", "kde", "kd", "ks", "gamma")) for which covariate effects should be added.
+#' @param fixed_effects A vector of fixed effect names corresponding to the parameters (e.g., c("t.edk50", "t.kde", "t.kd", "t.ks", "t.gamma")). These should be mu-referenced fixed effects that represent the average effect across groups. The function will add covariate effects on top of these fixed effects for each non-reference group.
+#' @return A modified rxode2 model object with added covariate effects for the specified parameters based on the provided groups.
+#' @details
+#' The fixed effects must be mu-referenced.
+#' @noRd 
+#' @author Omar I. Elashkar
 parse_covariate <- function(groups, 
   model = kpd_mod, 
   cov_name = "group_code",
-  parameters = c("edk50", "kde", "kd", "ks")) {
+  parameters = c("edk50", "kde", "kd", "ks", "gamma"), 
+  fixed_effects = c("t.edk50", "t.kde", "t.kd", "t.ks", "t.gamma")
+  ) {
+
+  model <- rxensure(model)
+
+  if (is.null(parameters) && is.null(fixed_effects)) {
+    return(model)
+  }
+  if (xor(is.null(parameters), is.null(fixed_effects))) {
+    stop("`parameters` and `fixed_effects` must both be NULL or both be non-NULL")
+  }
   
   checkmate::assertIntegerish(groups, lower = 0)
+  stopifnot(length(parameters) == length(fixed_effects))
   groups <- factor_to_numeric(groups)
 
   n_groups <- unique(length(groups))
@@ -1475,6 +1507,87 @@ parse_covariate <- function(groups,
   other_groups <- unique(groups)[-1]
   
   cov_ifelse_lines <- c()
+
+  add_covariate_to_param_line <- function(lines, param) {
+    assign_pattern <- paste0("^\\s*", param, "\\s*<-\\s*(.*)$")
+    idx <- grep(assign_pattern, lines, perl = TRUE)
+    if (length(idx) == 0) {
+      stop("Could not find assignment starting with '", param, " <-'")
+    }
+
+    has_symbol <- function(expr, symbol_name) {
+      if (is.symbol(expr)) {
+        return(identical(as.character(expr), symbol_name))
+      }
+      if (!is.call(expr)) {
+        return(FALSE)
+      }
+      any(vapply(as.list(expr)[-1], has_symbol, logical(1), symbol_name = symbol_name))
+    }
+
+    inject_covariate_effect <- function(expr, param) {
+      cov_name <- paste0("cov_", param)
+      eta_name <- paste0("eta.", param)
+
+      if (has_symbol(expr, cov_name)) {
+        return(expr)
+      }
+
+      cov_expr <- substitute(1 - x, list(x = as.name(cov_name)))
+
+      flatten_plus_terms <- function(node) {
+        if (is.call(node) && identical(as.character(node[[1]]), "+") && length(node) == 3) {
+          c(flatten_plus_terms(node[[2]]), flatten_plus_terms(node[[3]]))
+        } else {
+          list(node)
+        }
+      }
+
+      rebuild_plus_terms <- function(terms) {
+        if (length(terms) == 1) {
+          return(terms[[1]])
+        }
+        Reduce(function(lhs, rhs) call("+", lhs, rhs), terms)
+      }
+
+      if (has_symbol(expr, eta_name)) {
+        terms <- flatten_plus_terms(expr)
+        eta_idx <- which(vapply(
+          terms,
+          function(term) is.symbol(term) && identical(as.character(term), eta_name),
+          logical(1)
+        ))
+
+        if (length(eta_idx) == 0) {
+          return(call("+", expr, cov_expr))
+        }
+
+        for (k in rev(eta_idx)) {
+          terms <- append(terms, list(cov_expr), after = k - 1)
+        }
+
+        return(rebuild_plus_terms(terms))
+      }
+
+      call("+", expr, cov_expr)
+    }
+
+    for (i in idx) {
+      rhs_txt <- sub(assign_pattern, "\\1", lines[i], perl = TRUE)
+      rhs_expr <- parse(text = rhs_txt)[[1]]
+
+      if (is.call(rhs_expr) && identical(as.character(rhs_expr[[1]]), "exp") && length(rhs_expr) >= 2) {
+        rhs_expr[[2]] <- inject_covariate_effect(rhs_expr[[2]], param)
+      } else {
+        rhs_expr <- inject_covariate_effect(rhs_expr, param)
+      }
+
+      rhs_new <- paste(deparse(rhs_expr, width.cutoff = 500L), collapse = " ")
+      lines[i] <- paste0(param, " <- ", rhs_new)
+    }
+
+    lines
+  }
   
   # Reference group: all covariate effects = 1
   for (param in parameters) {
@@ -1495,6 +1608,10 @@ parse_covariate <- function(groups,
   }
   
   omodel_lines <- rxode2::modelExtract(new_mod, endpoint = NA)
+
+  for (param in parameters) {
+    omodel_lines <- add_covariate_to_param_line(omodel_lines, param)
+  }
   
   # Combine cov_ifelse_lines and omodel_lines, then evaluate as model code
   model_code <- c(cov_ifelse_lines, omodel_lines)
