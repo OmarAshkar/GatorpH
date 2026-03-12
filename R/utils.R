@@ -12,7 +12,7 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
         eta.kde ~ eta.kde
         eta.kd ~ eta.kd
         eta.ks ~ eta.ks
-        # eta.gamma ~ 0.1
+        eta.gamma ~ 0.1
 
         sigma_add <- sigma_add
     })
@@ -23,7 +23,7 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
         kde <- exp(t.kde +  eta.kde)
         kd <- exp(t.kd +  eta.kd)
         ks <- exp(t.ks +  eta.ks)
-        gamma <- exp(t.gamma)
+        gamma <- exp(t.gamma + eta.gamma)
 
 
         # depot(0) = amt
@@ -33,7 +33,7 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
         d/dt(depot) = -kde * depot
 
         IR = kde * depot # drug elimiation rate 
-        d/dt(resp) = ks  * (1 - (IR)^gamma / (edk50^gamma + (IR)^gamma)) - kd*resp 
+        d/dt(resp) = ks  * (1 - (IR)**gamma / (edk50**gamma + (IR)**gamma)) - kd*resp 
 
         resp ~ add(sigma_add)
 
@@ -67,7 +67,7 @@ kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1,
         eta.kde ~ eta.kde
         eta.kd ~ eta.kd
         eta.ks ~ eta.ks
-        # eta.gamma ~ 0.1
+        eta.gamma ~ 0.1
 
         sigma_add <- sigma_add
     })
@@ -78,7 +78,7 @@ kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1,
         kde <- exp(t.kde + eta.kde)
         kd <- exp(t.kd + eta.kd)
         ks <- exp(t.ks + eta.ks)
-        gamma <- exp(t.gamma)
+        gamma <- exp(t.gamma + eta.gamma)
 
         # depot(0) = amt
         # ks <- baseline * kd
@@ -86,7 +86,7 @@ kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1,
 
         d/dt(depot) = -kde * depot
         IR = kde * depot
-        d/dt(resp) = ks * (1 - depot^gamma/(edk50^gamma + depot^gamma) ) - kd*resp
+        d/dt(resp) = ks * (1 - depot**gamma/(edk50**gamma + depot**gamma) ) - kd*resp
 
         resp ~ add(sigma_add)
 
@@ -608,6 +608,7 @@ rxensure <- function(mod) {
 #' @param group Group identifier for the subjects (default is "A").
 #' @param ignoreBSV Logical indicating whether to ignore between-subject variability (default is TRUE).
 #' @param ignoreRUV Logical indicating whether to ignore residual unexplained variability (default is TRUE).
+#' @param include_gamma logical indicating whether to include the gamma parameter in the simulation (default is TRUE).
 #' @return A data frame containing the simulated pH-time data.
 #' @author Omar I. Elashkar
 simulate_steph_curve <- function(
@@ -620,7 +621,8 @@ simulate_steph_curve <- function(
   step = 0.1,
   group = "A",
   ignoreBSV = TRUE,
-  ignoreRUV = TRUE
+  ignoreRUV = TRUE, 
+  include_gamma = TRUE
 ) {
   checkmate::assertNumber(dose, finite = TRUE)
   checkmate::assertNumber(nsub, lower = 1)
@@ -628,6 +630,9 @@ simulate_steph_curve <- function(
   checkmate::assertNumeric(baseline_time, lower = -Inf, upper = 0)
   checkmate::assertNumeric(baseline, lower = 0, upper = 14, null.ok = TRUE)
   
+  if(!include_gamma){
+    model <- remove_gamma(model)
+  }
 
   if(!is.null(baseline)){
     inidf <- model$iniDf
@@ -660,7 +665,13 @@ simulate_steph_curve <- function(
     model <- rxode2::zeroRe(model, which = "sigma")
   }
 
-  model <- parse_covariate(1, model)
+  basecovariates <- c("ks", "kd", "kde", "edk50")
+  if(include_gamma){
+    basecovariates <- c(basecovariates, "gamma")
+  }
+  model <- parse_covariate(1, model, parameters = basecovariates, 
+    fixed_effects = paste0("t.", basecovariates))
+
   group <- group
   group_code <- factor_to_numeric(group)
   
@@ -677,7 +688,6 @@ simulate_steph_curve <- function(
       group_code = group_code
     )
   }
-  
   sim <- rxode2::rxSolve(model, events = ev, iCov = covdf)
 
   if (nsub == 1) {
@@ -860,19 +870,29 @@ digitizeread <- function(x) {
 #' @param stratify Logical indicating whether to fit separate models for each group (default is FALSE).
 #' @param estmethod Estimation method to use (default is "focei").
 #' @param dose_time Time (positive) of baseline to add before time 0 (default is 5). 
+#' @param include_gamma logical indicating whether to include the gamma parameter in the model (default is TRUE).
 #' @return nlmixr2 fit object.
 #' @author Omar I. Elashkar
 #' @export
 fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei", dose_time = 5,
-  cov_params = c("kd", "kde", "edk50", "gamma"), cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma")
+  cov_params = c("kd", "kde", "edk50", "gamma"), cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"), include_gamma = TRUE
 ) {
+
+  if ("ks" %in% cov_params && "kd" %in% cov_params) {
+    stop("cov_params cannot contain both 'ks' and 'kd'")
+  }
+  
   check_data(data, sim = TRUE)
   checkmate::assertNumber(amt, finite = TRUE)
   checkmate::assertLogical(stratify, len = 1)
-  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "uobyqa"))
-  model <- rxensure(model)
+  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "bobyqa", "uobyqa"))
   checkmate::assertNumber(dose_time, finite = TRUE, upper = Inf, lower = 0)
-
+  
+  model <- rxensure(model)
+  if(!include_gamma){
+    model <- remove_gamma(model)
+  }
+  
   # preserve group and group_code information
   group_info <- data |>
     dplyr::select(id, group, group_code) |>
@@ -920,6 +940,8 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
 
   uniqueids <- unique(data$id)
 
+
+
   if(length(uniqueids) > 1 && length(unique(data$group_code)) > 1){
     model <- parse_covariate(unique(data$group_code), model, parameters= cov_params, 
       fixed_effects = cov_fixedeffects)
@@ -927,11 +949,11 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     warning("Only one group or one subject in the data. Not including group covariate in the model.")
   }
 
-  if (estmethod == "uobyqa") {
+  if (estmethod == "bobyqa" || estmethod == "uobyqa") {
     finalFit <- nlmixr2est::nlmixr2(
       zeroRe(model, which = "omega"),
       data,
-      est = "uobyqa"
+      est = estmethod
     )
   } else {
     if (length(uniqueids) == 1) {
@@ -1108,7 +1130,8 @@ pHMetrics_from_fit <- function(
   step = 0.1,
   dose = 100,
   plot = FALSE,
-  stratify_by = "None"
+  stratify_by = "None",
+  include_gamma = TRUE
 ) {
   checkmate::assertClass(x, "nlmixr2FitCore")
   model <- x$finalUi
@@ -1116,7 +1139,7 @@ pHMetrics_from_fit <- function(
   nsub <- length(uniqueids)
   time <- seq(time_start, time_end, by = step)
   estMethod <- x$est
-  onlymean <- estMethod == "uobyqa"
+  onlymean <- estMethod == "uobyqa" | estMethod == "bobyqa"
 
   # fit_individual_plot(x)
 
@@ -1130,34 +1153,42 @@ pHMetrics_from_fit <- function(
     tibble::rownames_to_column("name") |>
     dplyr::select(name, Estimate) |>
     tidyr::pivot_wider(names_from = "name", values_from = "Estimate") |> 
-    dplyr::select("t.edk50", "t.kde", "t.kd", "t.ks", "t.gamma")
-  if(length(unique(x$origData$group_code)) > 1){
-    icovDf <- as.data.frame(x) |> 
-      dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
-      dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
-      tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
-        names_to = "covariate", values_to = "value") |>
-      dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
-      dplyr::distinct() |>
-      tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
-      dplyr::distinct() |>
-      dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
-  } else {
-    icovDf <- as.data.frame(x) |> 
-      dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
-      dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
-      # add covariate manually 
-      mutate(cov_ks = 0, cov_edk50 = 0, cov_kd = 0, cov_kde = 0, cov_gamma = 0) |>
-      tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
-        names_to = "covariate", values_to = "value") |>
-      dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
-      dplyr::distinct() |>
-      tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
-      dplyr::distinct() |>
-      dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
+    dplyr::select(dplyr::starts_with("t."))
 
+  has_covariates <- any(grepl("cov_", rownames(x$parFixedDf)))
+  if(has_covariates){
+    if(length(unique(x$origData$group_code)) > 1){
+      icovDf <- as.data.frame(x) |> 
+        dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
+        dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
+        tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
+          names_to = "covariate", values_to = "value") |>
+        dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
+        dplyr::distinct() |>
+        tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
+        dplyr::distinct() |>
+        dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
+    } else {
+      icovDf <- as.data.frame(x) |> 
+        dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
+        dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
+        # add covariate manually 
+        mutate(cov_ks = 0, cov_edk50 = 0, cov_kd = 0, cov_kde = 0, cov_gamma = 0) |>
+        tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
+          names_to = "covariate", values_to = "value") |>
+        dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
+        dplyr::distinct() |>
+        tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
+        dplyr::distinct() |>
+        dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
+    }
+  } else { # if no covariates, just get ID and group information
+    icovDf <- as.data.frame(x) |> 
+      dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta.")) |> 
+      dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
+      dplyr::distinct() |>
+      dplyr::mutate(ID = as.numeric(as.character(.data$ID))) 
   }
-
 
   new_mod <- model |> rxode2::zeroRe(which = "sigma")
   
@@ -1183,15 +1214,21 @@ pHMetrics_from_fit <- function(
   if (onlymean) {
     icovDf <- icovDf |> 
       # dplyr::mutate(across(starts_with("eta."), ~ 0)) |>
-      dplyr::mutate(eta.edk50 = 0, eta.kde = 0, eta.kd = 0, eta.ks = 0) |> # ensure regressors
+      dplyr::mutate(eta.edk50 = 0, eta.kde = 0, eta.kd = 0, eta.ks = 0, eta.gamma = 0) |> # ensure regressors
       dplyr::distinct() 
   } 
+
+  if(!include_gamma){
+    icovDf <- icovDf |> 
+      dplyr::mutate(eta.gamma = 0) 
+  }
+
   
   ids <- as.numeric(as.character(unique(icovDf$ID)))
   ev <- rxode2::et(amt = dose, cmt = "depot", time = dose_time) |> # use dose_time here
     rxode2::et(time = time) |>
     rxode2::et(id = ids)
-      
+  
   simRes <- rxSolve(
     new_mod,
     iCov = icovDf, # TODO add flowrate, buffering, substance
@@ -1301,12 +1338,17 @@ pHMetrics_from_fit <- function(
       dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
   }
 
+  param_cols <- c("edk50", "kde", "kd", "ks")
+  if ("gamma" %in% names(paramsdf)) {
+    param_cols <- c(param_cols, "gamma")
+  }
+  
   derivedDf <-  dplyr::left_join(
       derivedDf,
       paramsdf |>
-        dplyr::select("ID", "edk50", "kde", "kd", "ks", "gamma", "group") |>
+        dplyr::select(dplyr::all_of(c("ID", param_cols, "group"))) |>
         dplyr::group_by(.data$ID, .data$group) |>
-        dplyr::summarize(across(c("edk50", "kde", "kd", "ks", "gamma"), mean), .groups = "keep") |>
+        dplyr::summarize(across(dplyr::all_of(param_cols), mean), .groups = "keep") |>
         dplyr::ungroup() |>
         dplyr::distinct(),
       by = c("ID" = "ID", "group" = "group")
@@ -1315,9 +1357,15 @@ pHMetrics_from_fit <- function(
       
 
   if(onlymean){
+    derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation")
+
+    if ("gamma" %in% names(derivedDf)) {
+      derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "gamma", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation")
+    }
+    
     derivedDf <- derivedDf |> 
       dplyr::group_by(.data$group, .data$auc) |>
-      dplyr::summarize(across(c("edk50", "kde", "kd", "ks", "gamma", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation"), mean), .groups = "keep") |>
+      dplyr::summarize(across(dplyr::all_of(derived_summarize_cols), mean), .groups = "keep") |>
       dplyr::ungroup() |>
       dplyr::mutate(ID = ".")
     stopifnot(nrow(derivedDf) == length(unique(x$origData$group_code)))
@@ -1408,13 +1456,6 @@ avg_to_pHdata <- function(x) {
 }
 
 
-add_covariate_effect <- function(model, covariate, parameters){
-  checkmate::assertClass(model, "rxode2")
-  checkmate::assertChoice(covariate, choices = c("flowrate", "buffering", "substance"))
-  checkmate::assertChoice(parameters, choices = c("edk50", "kde", "kd", "ks", "gamma"))
-
-
-}
 
 get_nsub <- function(x) {
   length(unique(x$id))
@@ -1623,4 +1664,13 @@ parse_covariate <- function(groups,
   new_mod <- new_mod$fun()
   rxode2::ini(new_mod) <- ini
   new_mod
+}
+
+remove_gamma <- function(model){
+  model <- rxensure(model)
+  model <- model |> 
+    rxode2::ini(t.gamma = log(1), eta.gamma = 0) |> 
+    rxode2::ini(t.gamma = fix, eta.gamma = fix) 
+
+  model
 }

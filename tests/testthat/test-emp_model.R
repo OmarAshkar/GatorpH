@@ -375,8 +375,11 @@ test_that("nlme birkhed", {
         d,
         model = kpd_mod(),
         amt = 100,
-        estmethod = "uobyqa",
-        dose_time = 5
+        estmethod = "bobyqa",
+        dose_time = 5,
+        cov_params = "ks",
+        cov_fixedeffects = "t.ks",
+        include_gamma = TRUE
     )
 
     fit_individual_plot(fit) 
@@ -401,7 +404,9 @@ test_that("nlme birkhed", {
         d,
         model = kpd_mod(),
         amt = 100,
-        estmethod = "focei",
+        estmethod = "saem",
+        cov_params = "ks",
+        cov_fixedeffects = "t.ks",
         dose_time = 5
     )
     pHdatnlme <- pHMetrics_from_fit(
@@ -416,6 +421,8 @@ test_that("nlme birkhed", {
 
     expect_false(any(is.na(pHdatnlme$area_under_pH)))
     expect_false(any(is.na(pHdatnlme$edk50)))
+
+    
 
 })
 
@@ -474,4 +481,115 @@ test_that("fejeskov", {
     )
     expect_false(any(is.na(pHdatnlme$area_under_pH)))
     expect_false(any(is.na(pHdatnlme$edk50)))
+})
+
+test_that("remove_gamma", {
+    mod <- kpd_mod()
+    mod_no_gamma <- remove_gamma(mod)
+    expect_false(any(grepl("gamma", names(mod_no_gamma))))
+
+    
+    dat <- simulate_steph_curve(
+        kpd_mod(0.8, 0.8, 0.1, 0.8),
+        nsub = 10,
+        baseline = 1,
+        time = c(0, 10, 15, 20, 30),
+        ignoreBSV = FALSE, 
+        include_gamma= FALSE
+    ) 
+
+    fit <- fit_pH_curve(
+        dat,
+        model = mod_no_gamma,
+        amt = 100,
+        estmethod = "bobyqa",
+        cov_params = "ks",
+        cov_fixedeffects = "t.ks", 
+        include_gamma = FALSE
+    )
+
+    res <- pHMetrics_from_fit(
+        fit,
+        time_start = 0,
+        time_end = 50,
+        step = 0.1,
+        dose = 100,
+        plot = TRUE, 
+        include_gamma = FALSE
+    )  |> expect_no_error()
+
+    
+    fit <- fit_pH_curve(
+        dat,
+        model = mod_no_gamma,
+        amt = 100,
+        estmethod = "saem",
+        cov_params = "ks",
+        cov_fixedeffects = "t.ks", 
+        include_gamma = FALSE
+    )
+
+    res <- pHMetrics_from_fit(
+        fit,
+        time_start = 0,
+        time_end = 50,
+        step = 0.1,
+        dose = 100,
+        plot = TRUE, 
+        include_gamma = FALSE
+    )  |> expect_no_error()
+
+
+    ## 
+    
+    d <- read_pH(system.file(
+        "extdata",
+        "Birkhed1_copy.csv",
+        package = "GatorpH"
+    ))
+
+    fit <- fit_pH_curve(
+        d,
+        model = kpd_mod(),
+        amt = 100,
+        estmethod = "bobyqa",
+        dose_time = 5,
+        cov_params = "ks",
+        cov_fixedeffects = "t.ks",
+        include_gamma = FALSE
+    )
+
+    pHdatnlme <- pHMetrics_from_fit(
+        fit,
+        ph_threshold = 6.5,
+        time_start = 0,
+        time_end = 50,
+        step = 0.1,
+        dose = 100,
+        plot = TRUE, 
+        include_gamma = FALSE
+    )
+
+    fit <- fit_pH_curve(
+        d,
+        model = kpd_mod(),
+        amt = 100,
+        estmethod = "saem",
+        dose_time = 5,
+        cov_params = c(),
+        cov_fixedeffects = c(),
+        include_gamma = FALSE
+    )
+    pHdatnlme <- pHMetrics_from_fit(
+        fit,
+        ph_threshold = 6.5,
+        time_start = 0,
+        time_end = 50,
+        step = 0.1,
+        dose = 100,
+        plot = TRUE, 
+        include_gamma = FALSE
+    )
+
+    
 })
