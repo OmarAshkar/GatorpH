@@ -1,3 +1,55 @@
+kpd_mod_desolve <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, 
+    gamma = 1, dose_time = 5, dose_amt = 100, times = seq(0, 50, by = 0.1)){
+      kpd_mod <- function(Time, State, Pars) {
+        with(as.list(c(State, Pars)), {
+          edk50 <- exp(t.edk50)
+          kde <- exp(t.kde)
+          kd <- exp(t.kd)
+          ks <- exp(t.ks)
+          gamma <- exp(t.gamma)
+
+          ddepot = -kde * depot
+          IR = kde * depot
+          dresp = ks  * (1 - (IR)**gamma / (edk50**gamma + (IR)**gamma)) - kd*resp
+
+          list(c(ddepot, dresp))
+        })
+      }
+
+      pars <- c(
+        t.edk50 = log(edk50),
+        t.kde = log(kde),
+        t.kd = log(kd),
+        t.ks = log(ks),
+        t.gamma = log(gamma)
+      )
+
+      yini <- c(depot = 0, resp = ks/kd)
+      # adminster dose after specified time 
+      ydose <- c(despot = 100)
+
+      times <- seq(0, 50, by = 0.1)
+
+      out1 <- deSolve::ode(
+        y = yini,
+        times = times,
+        func = kpd_mod,
+        parms = pars,
+        events = list(data = data.frame(var = "depot", time = dose_time, value = dose_amt, method = "add"))
+      )
+
+      out2 <- deSolve::ode(
+        y = ydose,
+        times = times,
+        func = kpd_mod,
+        parms = pars
+      )
+
+
+
+}
+
+
 kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, 
     gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
@@ -85,7 +137,8 @@ kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1,
         resp(0) = ks/kd # Initial condition for response
 
         d/dt(depot) = -kde * depot
-        IR = kde * depot
+        # IR = kde * depot
+        ## A / A50 + A
         d/dt(resp) = ks * (1 - depot**gamma/(edk50**gamma + depot**gamma) ) - kd*resp
 
         resp ~ add(sigma_add)
@@ -273,6 +326,9 @@ read_pH <- function(file_path, baseline = 7, baseline_time = -5) {
     stop("Unsupported file type. Please provide a CSV or Excel file.")
   }
 
+  # remove empty rows (trailing empty)
+  dat <- dat |> janitor::remove_empty(which = c("rows"))
+
   if (is.null(dat$baseline)) {
     dat$baseline <- baseline
   } else{
@@ -323,7 +379,7 @@ read_pH <- function(file_path, baseline = 7, baseline_time = -5) {
   dat <- dat |> 
     dplyr::select(-"baseline") |>
     dplyr::mutate(id = as.numeric(id)) |> 
-    janitor::remove_empty(which = c("rows", "cols"))
+    janitor::remove_empty(which = c("rows", "cols")) # recheck remove empty
 
 
   check_data(dat)
