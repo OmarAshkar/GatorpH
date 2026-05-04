@@ -90,7 +90,10 @@ test_that("Naive pool single sub", {
     expect_true(pHdatMean$kde > 0)
     expect_true(pHdatMean$kd > 0)
     expect_true(pHdatMean$ks > 0)
+
 })
+
+
 
 
 test_that("Naive pool multiple subs, multiple groups", {

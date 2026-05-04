@@ -309,13 +309,13 @@ check_time_varying <- function(x, group = "id", column){
 #' @return A data frame containing the pH data.
 #' @author Omar I. Elashkar
 #' @export
-read_pH <- function(file_path, baseline = 7, baseline_time = -5) {
+read_pH <- function(file_path, dose_time = 1, dose = 100){
   checkmate::assertFileExists(file_path)
 
   file_ext <- tools::file_ext(file_path)
   checkmate::assertChoice(file_ext, choices = c("csv", "xls", "xlsx"))
-  checkmate::assertNumeric(baseline, lower = 0, upper = 14)
-  checkmate::assertNumber(baseline_time, finite = TRUE, null.ok = TRUE, upper = 0, lower = -Inf) 
+  # checkmate::assertNumeric(baseline, lower = 0, upper = 14)
+  checkmate::assertNumeric(dose_time, finite = TRUE, min.len = 1)
 
   if (file_ext %in% c("xls", "xlsx")) {
     dat <- readxl::read_excel(file_path)
@@ -329,55 +329,85 @@ read_pH <- function(file_path, baseline = 7, baseline_time = -5) {
   # remove empty rows (trailing empty)
   dat <- dat |> janitor::remove_empty(which = c("rows"))
 
-  if (is.null(dat$baseline)) {
-    dat$baseline <- baseline
-  } else{
-    # make sure not NA
-    if(any(is.na(dat$baseline))){
-      stop("Baseline cannot be NA. Please fill in missing baseline values or set baseline parameter.")
-    }
 
-    # make sure not time varying
-    baseline_vary <- check_time_varying(dat, group = "id", column = "baseline")
-    if (baseline_vary) {
-      stop("Baseline varies within subject(s). Please ensure baseline is constant for each subject or set baseline parameter.")
-    }
-
-  }
-  if(is.null(dat$flowrate)){
-    dat$flowrate <- NA
-  }
-  if(is.null(dat$buffering)){
-    dat$buffering <- NA
-  }
-  
   if(is.null(dat$group)){
     dat$group <- "default"
   } 
   
-
-  if(!is.null(baseline_time)){
-    dat <- split(dat, dat$id) |> lapply(function(df) {
-        predose = data.frame(
-          time = baseline_time,
-          pH = df$baseline[2],
-          id = df$id[1],
-          group = df$group[1],
-          baseline = df$baseline[1],
-          flowrate = df$flowrate[1],
-          buffering = df$buffering[1]
-        )
-        df <- dplyr::bind_rows(predose, df)
-        df
-      })
-    dat <- do.call(rbind, dat) |>
-      dplyr::mutate(time = time + abs(baseline_time)) |> 
-      dplyr::arrange(id, time)
+  if(is.null(dat$flowrate)){
+    dat$flowrate <- NA
   }
+
+  if(is.null(dat$buffering)){
+    dat$buffering <- NA
+  }
+
+  if(check_time_varying(dat, group = "id", column = "group")){
+    stop("Group varies within subject(s). Please ensure unique group for each subject ID in the data.")
+  }
+  if(check_time_varying(dat, group = "id", column = "flowrate")){
+    stop("Flowrate varies within subject(s). Please ensure unique flowrate for each subject ID in the data.")
+  }
+  if(check_time_varying(dat, group = "id", column = "buffering")){
+    stop("Buffering varies within subject(s). Please ensure unique buffering for each subject ID in the data.")
+  }
+
+
+  adm_df <- data.frame(time = dose_time, adm = 1)
+  stopifnot(nrow(adm_df) == length(dose_time))
+
+  dat <- dat |> 
+    dplyr::group_by(.data$id, .data$group) |> 
+    dplyr::mutate(adm = 0) 
+  
+  dat <- split(dat, dat$id) |> lapply(function(df) {
+    df <- dplyr::bind_rows(df, adm_df) |> 
+      mutate(id = df$id[1], group = df$group[1]) |>
+      dplyr::arrange(time) |>
+      dplyr::mutate(dose = ifelse(.data$adm == 1, dose, NA))
+  }) 
+  dat <- do.call(rbind, dat) 
+  
+
+  # if (is.null(dat$baseline)) {
+  #   dat$baseline <- baseline
+  # } else{
+  #   # make sure not NA
+  #   if(any(is.na(dat$baseline))){
+  #     stop("Baseline cannot be NA. Please fill in missing baseline values or set baseline parameter.")
+  #   }
+
+  #   # make sure not time varying
+  #   baseline_vary <- check_time_varying(dat, group = "id", column = "baseline")
+  #   if (baseline_vary) {
+  #     stop("Baseline varies within subject(s). Please ensure baseline is constant for each subject or set baseline parameter.")
+  #   }
+
+  # }
+
+  
+  # if(!is.null(baseline_time)){
+  #   dat <- split(dat, dat$id) |> lapply(function(df) {
+  #       predose = data.frame(
+  #         time = baseline_time,
+  #         pH = df$baseline[2],
+  #         id = df$id[1],
+  #         group = df$group[1],
+  #         baseline = df$baseline[1],
+  #         flowrate = df$flowrate[1],
+  #         buffering = df$buffering[1]
+  #       )
+  #       df <- dplyr::bind_rows(predose, df)
+  #       df
+  #     })
+  #   dat <- do.call(rbind, dat) |>
+  #     dplyr::mutate(time = time + abs(baseline_time)) |> 
+  #     dplyr::arrange(id, time)
+  # }
   
   dat$group_code <- factor_to_numeric(dat$group)
   dat <- dat |> 
-    dplyr::select(-"baseline") |>
+    # dplyr::select(-"baseline") |>
     dplyr::mutate(id = as.numeric(id)) |> 
     janitor::remove_empty(which = c("rows", "cols")) # recheck remove empty
 
@@ -396,7 +426,7 @@ check_data <- function(x, sim = FALSE) {
   checkmate::assertDataFrame(x)
   checkmate::assertNames(
     names(x),
-    must.include = c("id", "pH", "time", "group", "group_code")
+    must.include = c("id", "pH", "time", "group", "group_code", "dose", "adm")
   )
   if (!sim) {
     checkmate::assertNumeric(x$pH, lower = 0, upper = 14)
@@ -407,7 +437,12 @@ check_data <- function(x, sim = FALSE) {
   checkmate::assertNumeric(x$id, any.missing = FALSE, min.len = 1)
 
   checkmate::assertVector(x$group, any.missing = FALSE, min.len = 1)
+  checkmate::assertNumeric(x$group_code, any.missing = FALSE, min.len = 1)
+
   checkmate::assertNumeric(x$time, finite = TRUE)
+  checkmate::assertNumeric(x$dose, any.missing = TRUE)
+
+  checkmate::assertIntegerish(x$adm, any.missing = FALSE, min.len = 1, lower = 0, upper = 1)
 
   # ensure group, group_code, and baseline do not vary within each subject
   if ("group" %in% names(x)) {
@@ -424,16 +459,16 @@ check_data <- function(x, sim = FALSE) {
 
   }
 
-  if ("baseline" %in% names(x)) {
-    baseline_vary <- x |>
-      dplyr::group_by(.data$id) |>
-      dplyr::summarize(n_baselines = dplyr::n_distinct(.data$baseline), .groups = "drop") |>
-      dplyr::filter(.data$n_baselines > 1)
+  # if ("baseline" %in% names(x)) {
+  #   baseline_vary <- x |>
+  #     dplyr::group_by(.data$id) |>
+  #     dplyr::summarize(n_baselines = dplyr::n_distinct(.data$baseline), .groups = "drop") |>
+  #     dplyr::filter(.data$n_baselines > 1)
     
-    if (nrow(baseline_vary) > 0) {
-      stop("Baseline varies within subject(s): ", paste(baseline_vary$id, collapse = ", "))
-    }
-  }
+  #   if (nrow(baseline_vary) > 0) {
+  #     stop("Baseline varies within subject(s): ", paste(baseline_vary$id, collapse = ", "))
+  #   }
+  # }
 
   # check if more than 10 groups
   if ("group" %in% names(x)) {
@@ -476,6 +511,20 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
   c(before, after)
 }
 
+#' Check if first and last pH points passed as crossing the threshold
+check_below_threshold <- function(xtime, xph, ph_threshold = 5.4) {
+
+  firstpHPoint <- xph[1]
+  lastpHPoint <- xph[length(xph)]
+
+  before <- (ph_threshold - firstpHPoint) >= 0
+  after <- (ph_threshold - lastpHPoint) >= 0
+
+  c(before, after)
+}
+
+  
+
 
 interpolate_pH <- function(xtime, xph) {
   time_points <- seq(min(xtime), max(xtime), by = 0.1)
@@ -506,7 +555,9 @@ integratepHArea <- function(
   time_start = 0,
   time_end = 50,
   method = "linear",
-  interpolate = TRUE
+  interpolate = TRUE, 
+  add_support_points = FALSE, 
+  plot = FALSE
 ) {
   checkmate::assertNumeric(x)
   checkmate::assertNumeric(y)
@@ -518,18 +569,53 @@ integratepHArea <- function(
     choices = c("linear", "log", "linear_down_log_up")
   )
 
+
+  tmpdata <- data.frame(x = x, y = y) |>
+    dplyr::filter(x >= time_start & x <= time_end)
+
+  #' The method will add points exactly at the start and end times if there are any existing data points below the threshold plus no crossing with threshold at this time point
+  if(add_support_points){
+    blwThreshold <- check_below_threshold(tmpdata$x, tmpdata$y, ph_threshold = ph_threshold)
+    checkCross <- check_crossing(tmpdata$x, tmpdata$y, ph_threshold = ph_threshold)
+    nsupport <- 0 
+    for(i in 1:2){
+      if(blwThreshold[i] & !checkCross[i]){
+        nsupport <- nsupport + 1
+        tmpdata <- rbind(tmpdata, data.frame(x = ifelse(i == 1, time_start, time_end), y = ph_threshold+0.04))
+
+    }
+    }
+    tmpdata <- tmpdata[order(tmpdata$x), ]
+
+    stopifnot(nsupport >= 0 & nsupport <= 2)
+    
+    message(paste("Added", nsupport ,"support points at start and end times for integration."))
+  }
+  
+  # Interpolation is redundant for linear method, but useful for plotting in general
   if (interpolate) {
-    newdata <- interpolate_pH(x, y)
+    newdata <- interpolate_pH(tmpdata$x, tmpdata$y)
     stopifnot(nrow(newdata) >= length(x))
     x <- newdata$time
     y <- newdata$pH
   }
-  tmpdata <- data.frame(x = x, y = y) |>
-    dplyr::filter(x >= time_start & x <= time_end)
+
+  
+
+  if(plot){
+    print(
+      ggplot(tmpdata, aes(x = x, y = y)) +
+        geom_line() +
+        geom_hline(yintercept = ph_threshold, linetype = "dashed", color = "red") +
+        labs(title = "pH over Time with Threshold", x = "Time", y = "pH", 
+          subtitle =  paste("interpolate = ", interpolate, ", add_support_points = ", add_support_points)) 
+    )
+  }
+
 
   if (all(check_crossing(tmpdata$x, tmpdata$y, ph_threshold = ph_threshold))) {
     tmpdata <- tmpdata |>
-      dplyr::filter(abs(y - ph_threshold) <= 0.1 | y < ph_threshold) # keep only points below threshold or close to it
+      dplyr::filter(abs(.data$y - ph_threshold) <= 0.02 | .data$y < ph_threshold) # keep only points below threshold or close to it
 
     x <- tmpdata$x
     y <- tmpdata$y
@@ -552,6 +638,12 @@ integratepHArea <- function(
   res
 }
 
+#' Add support points to able to perform integration
+#' @param x Data frame containing pH data.
+#' @param threshold pH threshold for calculations.
+#' @param time_start Start time for area and time under pH calculation.
+#' @param time_end End time for area and time under pH calculation.
+#' 
 
 #' Calculate Time Under pH Threshold
 #' @description Calculates the total time each subject/group spends below a specified pH threshold.
@@ -596,7 +688,9 @@ calc_area_under_pH <- function(
   ph_threshold = 5.4,
   time_start = 0,
   time_end = 50,
-  method = "linear"
+  method = "linear", 
+  add_support_points = FALSE, 
+  plot = FALSE # print plot for diagnostics
 ) {
   check_data(x)
 
@@ -612,7 +706,9 @@ calc_area_under_pH <- function(
         time_start = time_start,
         time_end = time_end,
         method = method,
-        interpolate = FALSE
+        interpolate = FALSE, 
+        add_support_points = add_support_points, 
+        plot = plot
       ),
       area_under_pH = integratepHArea(
         x = time,
@@ -621,7 +717,9 @@ calc_area_under_pH <- function(
         time_start = time_start,
         time_end = time_end,
         method = method,
-        interpolate = TRUE
+        interpolate = TRUE, 
+        add_support_points = add_support_points,
+        plot = plot
       ),
       .groups = "drop"
     ) |>
@@ -941,7 +1039,7 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
   check_data(data, sim = TRUE)
   checkmate::assertNumber(amt, finite = TRUE)
   checkmate::assertLogical(stratify, len = 1)
-  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "bobyqa", "uobyqa"))
+  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "bobyqa", "uobyqa", "fo", "foce"))
   checkmate::assertNumber(dose_time, finite = TRUE, upper = Inf, lower = 0)
   
   model <- rxensure(model)
@@ -1005,7 +1103,7 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     warning("Only one group or one subject in the data. Not including group covariate in the model.")
   }
 
-  if (estmethod == "bobyqa" || estmethod == "uobyqa") {
+  if (estmethod %in% c("bobyqa", "uobyqa", "fo", "foce", "focei")) {
     finalFit <- nlmixr2est::nlmixr2(
       zeroRe(model, which = "omega"),
       data,
@@ -1126,6 +1224,7 @@ summary.QuantPH <- function(object, ...) {
 }
 
 
+
 #' Run direct estimation for pH data
 #' @description Runs direct estimation calculations for pH data, including minimum pH, time to minimum pH, time under pH threshold, and AUC under pH threshold.
 #' @param x Data frame containing pH data.
@@ -1140,7 +1239,9 @@ run_direct_estimation <- function(
   ph_threshold = 5.4,
   time_start = 0,
   time_end = 50, 
-  method = "linear"
+  method = "linear", 
+  add_support_points = FALSE, 
+  use_baseline = TRUE
 ) {
   check_data(x)
 
@@ -1154,7 +1255,9 @@ run_direct_estimation <- function(
     x,
     ph_threshold = ph_threshold,
     time_start = time_start,
-    time_end = time_end
+    time_end = time_end, 
+    method = method,
+    add_support_points = add_support_points
   )
   res <- phmin |>
     dplyr::left_join(tmin, by = c("id", "group")) |>
@@ -1187,7 +1290,8 @@ pHMetrics_from_fit <- function(
   dose = 100,
   plot = FALSE,
   stratify_by = "None",
-  include_gamma = TRUE
+  include_gamma = TRUE,
+  add_support_points = FALSE
 ) {
   checkmate::assertClass(x, "nlmixr2FitCore")
   model <- x$finalUi
@@ -1371,7 +1475,8 @@ pHMetrics_from_fit <- function(
     plt <- NA
   }
 
-  derivedDf <- run_direct_estimation(simRes, ph_threshold = ph_threshold) |> 
+  derivedDf <- run_direct_estimation(simRes, ph_threshold = ph_threshold, 
+    add_support_points = add_support_points) |> 
     as.data.frame() |> 
     dplyr::rename(ID = "id")
 
@@ -1726,7 +1831,7 @@ remove_gamma <- function(model){
   model <- rxensure(model)
   model <- model |> 
     rxode2::ini(t.gamma = log(1), eta.gamma = 0) |> 
-    rxode2::ini(t.gamma = fix, eta.gamma = fix) 
+    rxode2::ini(t.gamma = fix) 
 
   model
 }
