@@ -1,14 +1,21 @@
 test_that("larssen", {
     dat <- read_pH(system.file("extdata", "Larsen1997_restingpH.csv", package = "GatorpH"),  
-        dose_time = 0)
+        dose_time = c(1, 50))
 
-    dat <- dat |> dplyr::filter(id == 1)
 
-    plot_pH_time(dat, showDosing = TRUE) |> expect_no_error()
+    plot_pH_time(dat, showDosing = TRUE, ph_threshold = 7) |> expect_no_error()
+
+
+    calc_area_under_pH(dat, ph_threshold = 7, method = "linear", 
+        add_support_points = TRUE, plot = TRUE, time_start = 0) |> expect_error()
 
     res <- calc_area_under_pH(dat, ph_threshold = 7, method = "linear", 
-        add_support_points = TRUE, plot = TRUE, time_start = 1)$area_under_pH
-    expect_true(all.equal(res, 29.275, tol = 0.005))
+        add_support_points = TRUE, plot = TRUE, time_start = 1.9)$area_under_pH
+    
+    res <- calc_area_under_pH(dat, ph_threshold = 7, method = "linear", 
+        add_support_points = TRUE, plot = TRUE, time_start = 1.9, time_end = 84)$area_under_pH
+
+    expect_true(all.equal(res, 85.3, tol = 0.005))
 })
 
 test_that("validated with trapz", {

@@ -1,56 +1,4 @@
-kpd_mod_desolve <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, 
-    gamma = 1, dose_time = 5, dose_amt = 100, times = seq(0, 50, by = 0.1)){
-      kpd_mod <- function(Time, State, Pars) {
-        with(as.list(c(State, Pars)), {
-          edk50 <- exp(t.edk50)
-          kde <- exp(t.kde)
-          kd <- exp(t.kd)
-          ks <- exp(t.ks)
-          gamma <- exp(t.gamma)
-
-          ddepot = -kde * depot
-          IR = kde * depot
-          dresp = ks  * (1 - (IR)**gamma / (edk50**gamma + (IR)**gamma)) - kd*resp
-
-          list(c(ddepot, dresp))
-        })
-      }
-
-      pars <- c(
-        t.edk50 = log(edk50),
-        t.kde = log(kde),
-        t.kd = log(kd),
-        t.ks = log(ks),
-        t.gamma = log(gamma)
-      )
-
-      yini <- c(depot = 0, resp = ks/kd)
-      # adminster dose after specified time 
-      ydose <- c(despot = 100)
-
-      times <- seq(0, 50, by = 0.1)
-
-      out1 <- deSolve::ode(
-        y = yini,
-        times = times,
-        func = kpd_mod,
-        parms = pars,
-        events = list(data = data.frame(var = "depot", time = dose_time, value = dose_amt, method = "add"))
-      )
-
-      out2 <- deSolve::ode(
-        y = ydose,
-        times = times,
-        func = kpd_mod,
-        parms = pars
-      )
-
-
-
-}
-
-
-kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, 
+kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, 
     gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
     rxode2::ini({
@@ -106,7 +54,7 @@ kpd_mod <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5,
 
 
 # mlx/Ooi parameterization
-kpd_mod2 <- function(edk50 = 0.5, kde = 0.5, kd = 0.5, ks = 0.5, gamma = 1, 
+kpd_mod2 <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
     rxode2::ini({
         t.edk50 = log(edk50) # dose producing 50% of Emax
@@ -532,8 +480,11 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
 #' Must have interpolated values for support
 check_below_threshold <- function(xtime, xph, ph_threshold = 5.4, start_time = 0, end_time = 50) {
 
-  firstpHPoint <- xph[xtime == start_time][1]
-  lastpHPoint <- xph[xtime == end_time][1]
+  firstTimePoint <- find_closest(xtime, start_time, threshold = 0.2)
+  lastTimePoint <- find_closest(xtime, end_time, threshold = 0.2)
+
+  firstpHPoint <- xph[xtime == firstTimePoint][1]
+  lastpHPoint <- xph[xtime == lastTimePoint][1]
 
   before <- (ph_threshold - firstpHPoint) >= 0
   after <- (ph_threshold - lastpHPoint) >= 0
@@ -541,7 +492,20 @@ check_below_threshold <- function(xtime, xph, ph_threshold = 5.4, start_time = 0
   c(isTRUE(before), isTRUE(after))
 }
 
+find_closest <- function(vec, target, threshold = 0.2) {
+  # Calculate absolute differences
+  diffs <- abs(vec - target)
   
+  # Find the index of the smallest difference
+  best_index <- which.min(diffs)
+  
+  # Check if the smallest difference is within the threshold
+  if (diffs[best_index] <= threshold) {
+    return(vec[best_index])
+  } else {
+    return(NA) # Returns NA if no value is close enough
+  }
+}
 
 interpolate_pH <- function(xtime, xph) {
   time_points <- seq(min(xtime), max(xtime), by = 0.1)
@@ -599,6 +563,7 @@ integratepHArea <- function(
     dplyr::filter(time >= time_start & time <= time_end)
 
   message("Crossing check: ", paste(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold), collapse = ", "))
+
 
   #' The method will add points exactly at the start and end times if there are any existing data points below the threshold plus no crossing with threshold at this time point
   if(add_support_points){
@@ -721,6 +686,12 @@ calc_area_under_pH <- function(
   check_data(x)
 
   x <- split_pH_data(x)[["0"]]
+
+  if(min(x$time) > time_start | max(x$time) < time_end){
+    stop(paste("Data does not cover the full integration interval. Consider adjusting time_start and time_end parameters to", 
+      x$time[1], "and", x$time[nrow(x)],"respectively."))
+  }
+
   # plot_pH_time(x)
   x |>
     dplyr::select("id", "group", "time", "pH") |>
