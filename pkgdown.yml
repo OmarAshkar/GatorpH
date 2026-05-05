@@ -2,7 +2,7 @@ pandoc: 3.8.3
 pkgdown: 2.2.0
 pkgdown_sha: ~
 articles: {}
-last_built: 2026-05-05T18:31Z
+last_built: 2026-05-05T21:44Z
 urls:
   reference: https://omarashkar.github.io/GatorpH/reference
   article: https://omarashkar.github.io/GatorpH/articles
