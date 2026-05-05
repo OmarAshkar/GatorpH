@@ -309,13 +309,14 @@ check_time_varying <- function(x, group = "id", column){
 #' @return A data frame containing the pH data.
 #' @author Omar I. Elashkar
 #' @export
-read_pH <- function(file_path, dose_time = 1, dose = 100){
+read_pH <- function(file_path, dose_time = 1, amt = 100){
   checkmate::assertFileExists(file_path)
 
   file_ext <- tools::file_ext(file_path)
   checkmate::assertChoice(file_ext, choices = c("csv", "xls", "xlsx"))
   # checkmate::assertNumeric(baseline, lower = 0, upper = 14)
   checkmate::assertNumeric(dose_time, finite = TRUE, min.len = 1)
+  checkmate::assertNumeric(amt, finite = TRUE, min.len = 1)
 
   if (file_ext %in% c("xls", "xlsx")) {
     dat <- readxl::read_excel(file_path)
@@ -353,7 +354,7 @@ read_pH <- function(file_path, dose_time = 1, dose = 100){
   }
 
 
-  adm_df <- data.frame(time = dose_time, adm = 1)
+  adm_df <- data.frame(time = dose_time, adm = 1, amt = amt)
   stopifnot(nrow(adm_df) == length(dose_time))
 
   dat <- dat |> 
@@ -364,7 +365,7 @@ read_pH <- function(file_path, dose_time = 1, dose = 100){
     df <- dplyr::bind_rows(df, adm_df) |> 
       mutate(id = df$id[1], group = df$group[1]) |>
       dplyr::arrange(time) |>
-      dplyr::mutate(dose = ifelse(.data$adm == 1, dose, NA))
+      dplyr::mutate(amt = ifelse(.data$adm == 1, amt, NA))
   }) 
   dat <- do.call(rbind, dat) 
   
@@ -416,6 +417,11 @@ read_pH <- function(file_path, dose_time = 1, dose = 100){
   dat
 }
 
+
+split_pH_data <- function(x){
+  split(x, x$adm)
+}
+
 #' Check pH Data
 #' @description Validates the structure and content of pH data.
 #' @param x Data frame containing pH data.
@@ -426,7 +432,7 @@ check_data <- function(x, sim = FALSE) {
   checkmate::assertDataFrame(x)
   checkmate::assertNames(
     names(x),
-    must.include = c("id", "pH", "time", "group", "group_code", "dose", "adm")
+    must.include = c("id", "pH", "time", "group", "group_code", "amt", "adm")
   )
   if (!sim) {
     checkmate::assertNumeric(x$pH, lower = 0, upper = 14)
@@ -440,9 +446,12 @@ check_data <- function(x, sim = FALSE) {
   checkmate::assertNumeric(x$group_code, any.missing = FALSE, min.len = 1)
 
   checkmate::assertNumeric(x$time, finite = TRUE)
-  checkmate::assertNumeric(x$dose, any.missing = TRUE)
+  checkmate::assertNumeric(x$amt, any.missing = TRUE)
 
-  checkmate::assertIntegerish(x$adm, any.missing = FALSE, min.len = 1, lower = 0, upper = 1)
+  if(!isTRUE(all.equal(sort(unique(x$adm)), c(0,1)))) {
+    stop("Administration indicator (adm) must be binary (0 or 1). Found values: ", paste(unique(x$adm), collapse = ", "))
+  }
+  
 
   # ensure group, group_code, and baseline do not vary within each subject
   if ("group" %in% names(x)) {
@@ -496,13 +505,21 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
   if (minpH >= ph_threshold) {
     return(FALSE)
   }
+
+
+  # first point below threshold 
+  timeFirst <- xtime[which(xph < ph_threshold)[1]]
+
+  # last point below threshold
+  timeLast <- xtime[which(xph < ph_threshold)[length(which(xph < ph_threshold))]]
+
   # cross before min pH
-  if (any(xph[xtime < timeMin] >= ph_threshold, na.rm = TRUE)) {
+  if (any(xph[xtime <= timeFirst] >= ph_threshold, na.rm = TRUE)) {
     before <- TRUE
   } else {
     before <- FALSE
   }
-  if (any(xph[xtime > timeMin] >= ph_threshold, na.rm = TRUE)) {
+  if (any(xph[xtime >= timeLast] >= ph_threshold, na.rm = TRUE)) {
     after <- TRUE
   } else {
     after <- FALSE
@@ -512,19 +529,19 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
 }
 
 #' Check if first and last pH points passed as crossing the threshold
-check_below_threshold <- function(xtime, xph, ph_threshold = 5.4) {
+#' Must have interpolated values for support
+check_below_threshold <- function(xtime, xph, ph_threshold = 5.4, start_time = 0, end_time = 50) {
 
-  firstpHPoint <- xph[1]
-  lastpHPoint <- xph[length(xph)]
+  firstpHPoint <- xph[xtime == start_time][1]
+  lastpHPoint <- xph[xtime == end_time][1]
 
   before <- (ph_threshold - firstpHPoint) >= 0
   after <- (ph_threshold - lastpHPoint) >= 0
 
-  c(before, after)
+  c(isTRUE(before), isTRUE(after))
 }
 
   
-
 
 interpolate_pH <- function(xtime, xph) {
   time_points <- seq(min(xtime), max(xtime), by = 0.1)
@@ -570,41 +587,50 @@ integratepHArea <- function(
   )
 
 
-  tmpdata <- data.frame(x = x, y = y) |>
-    dplyr::filter(x >= time_start & x <= time_end)
+  tmpdata <- data.frame(time = x, pH = y) 
+    
+  # Interpolation is needed as there is usually no support points on the threshold
+  if (interpolate) {
+    tmpdata <- interpolate_pH(tmpdata$time, tmpdata$pH)
+    stopifnot(nrow(tmpdata) >= length(x))
+  }
+  
+  tmpdata <- tmpdata |>
+    dplyr::filter(time >= time_start & time <= time_end)
+
+  message("Crossing check: ", paste(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold), collapse = ", "))
 
   #' The method will add points exactly at the start and end times if there are any existing data points below the threshold plus no crossing with threshold at this time point
   if(add_support_points){
-    blwThreshold <- check_below_threshold(tmpdata$x, tmpdata$y, ph_threshold = ph_threshold)
-    checkCross <- check_crossing(tmpdata$x, tmpdata$y, ph_threshold = ph_threshold)
+    blwThreshold <- check_below_threshold(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold, start_time = time_start, end_time = time_end)
+    checkCross <- check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold)
     nsupport <- 0 
+    len_before <- nrow(tmpdata)
     for(i in 1:2){
       if(blwThreshold[i] & !checkCross[i]){
         nsupport <- nsupport + 1
-        tmpdata <- rbind(tmpdata, data.frame(x = ifelse(i == 1, time_start, time_end), y = ph_threshold+0.04))
+        tmpdata <- rbind(tmpdata, data.frame(time = ifelse(i == 1, time_start, time_end), pH = ph_threshold+0.04))
+        message(paste("Added support point at time", ifelse(i == 1, time_start, time_end), "with pH =", ph_threshold+0.04))
 
     }
     }
-    tmpdata <- tmpdata[order(tmpdata$x), ]
+    tmpdata <- tmpdata[order(tmpdata$time), ]
 
     stopifnot(nsupport >= 0 & nsupport <= 2)
+    stopifnot(nrow(tmpdata) == len_before + nsupport)
     
     message(paste("Added", nsupport ,"support points at start and end times for integration."))
+    
+    message("Crossing check: ", paste(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold), collapse = ", "))
   }
+
   
-  # Interpolation is redundant for linear method, but useful for plotting in general
-  if (interpolate) {
-    newdata <- interpolate_pH(tmpdata$x, tmpdata$y)
-    stopifnot(nrow(newdata) >= length(x))
-    x <- newdata$time
-    y <- newdata$pH
-  }
 
   
 
   if(plot){
     print(
-      ggplot(tmpdata, aes(x = x, y = y)) +
+      ggplot(tmpdata, aes(x = time, y = pH)) +
         geom_line() +
         geom_hline(yintercept = ph_threshold, linetype = "dashed", color = "red") +
         labs(title = "pH over Time with Threshold", x = "Time", y = "pH", 
@@ -612,13 +638,12 @@ integratepHArea <- function(
     )
   }
 
-
-  if (all(check_crossing(tmpdata$x, tmpdata$y, ph_threshold = ph_threshold))) {
+  if (all(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold))) {
     tmpdata <- tmpdata |>
-      dplyr::filter(abs(.data$y - ph_threshold) <= 0.02 | .data$y < ph_threshold) # keep only points below threshold or close to it
+      dplyr::filter(abs(.data$pH - ph_threshold) <= 0.02 | .data$pH < ph_threshold) # keep only points below threshold or close to it
 
-    x <- tmpdata$x
-    y <- tmpdata$y
+    x <- tmpdata$time
+    y <- tmpdata$pH
 
     y <- ph_threshold - y # flip
     if (method == "linear") {
@@ -655,6 +680,7 @@ integratepHArea <- function(
 calc_time_under_pH <- function(x, ph_threshold = 5.4) {
   check_data(x)
 
+  x <- split_pH_data(x)[["0"]]
   time_under_ph_func <- function(xtime, xph, ph_threshold) {
     newdata <- interpolate_pH(xtime, xph)
     # filter only points below pH threshold
@@ -694,6 +720,7 @@ calc_area_under_pH <- function(
 ) {
   check_data(x)
 
+  x <- split_pH_data(x)[["0"]]
   # plot_pH_time(x)
   x |>
     dplyr::select("id", "group", "time", "pH") |>
@@ -730,6 +757,7 @@ calc_area_under_pH <- function(
 
 calc_pH_min <- function(x) {
   check_data(x)
+  x <- split_pH_data(x)[["0"]]
   x |>
     dplyr::group_by(.data$id, .data$group) |>
     dplyr::summarise(pH_min = min(.data$pH, na.rm = TRUE), .groups = "drop")
@@ -737,6 +765,7 @@ calc_pH_min <- function(x) {
 
 calc_t_min <- function(x) {
   check_data(x)
+  x <- split_pH_data(x)[["0"]]
 
   x |>
     dplyr::group_by(.data$id, .data$group) |>
@@ -769,7 +798,7 @@ simulate_steph_curve <- function(
   model,
   time = seq(0, 50, by = 0.1),
   dose = 100,
-  baseline_time = -5,
+  dose_time = 5,
   nsub = 1,
   baseline = 7,
   step = 0.1,
@@ -781,7 +810,7 @@ simulate_steph_curve <- function(
   checkmate::assertNumber(dose, finite = TRUE)
   checkmate::assertNumber(nsub, lower = 1)
   model <- rxensure(model)
-  checkmate::assertNumeric(baseline_time, lower = -Inf, upper = 0)
+  checkmate::assertNumeric(dose_time, lower = 0, upper = Inf)
   checkmate::assertNumeric(baseline, lower = 0, upper = 14, null.ok = TRUE)
   
   if(!include_gamma){
@@ -807,9 +836,9 @@ simulate_steph_curve <- function(
     model$iniDf <- inidf
   } 
 
-  ev <- rxode2::et(amt = dose, cmt = "depot", time = abs(baseline_time))
+  ev <- rxode2::et(amt = dose, cmt = "depot", time = abs(dose_time))
   ev <- ev |>
-    rxode2::et(time = unique(c(0, time + abs(baseline_time)))) |>
+    rxode2::et(time = unique(c(0, time))) |>
     rxode2::et(id = seq(1, nsub))
   if (ignoreBSV) {
         # resp ~ add(sigma_add)
@@ -842,7 +871,7 @@ simulate_steph_curve <- function(
       group_code = group_code
     )
   }
-  sim <- rxode2::rxSolve(model, events = ev, iCov = covdf)
+  sim <- rxode2::rxSolve(model, events = ev, iCov = covdf, addDosing = TRUE)
 
   if (nsub == 1) {
     message("only one subject simulated, setting id to 1")
@@ -894,6 +923,15 @@ simulate_steph_curve <- function(
   sim
 }
 
+sim_to_pH_data <- function(x) {
+  x <- x |>
+    dplyr::rename("adm" = "evid") |>
+    dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
+    dplyr::select("id", "group", "group_code", "time", "pH", "adm", "amt") 
+  check_data(x)
+  x
+}
+
 summarize_sim <- function(res) {
   res |>
     group_by(.data$id, .data$group) |>
@@ -920,6 +958,10 @@ plot_pkpd_curve <- function(res) {
 #' @description Generates a plot of pH values over time for different subjects/groups, highlighting a specified pH threshold.
 #' @param res Data frame containing pH data.
 #' @param ph_threshold pH threshold to highlight on the plot (default is 5.4).
+#' @param show_id Logical indicating whether to show subject IDs in the legend (default is TRUE).
+#' @param stratify_by Variable to stratify the plot by (default is "None"). Options are "None", "Subject", or "Group".
+#' @param showAvg Logical indicating whether to show the average pH curve across subjects/groups (default is FALSE).
+#' @param showDosing Logical indicating whether to show dosing times on the plot (default is FALSE).
 #' @return A ggplot2 object representing the pH vs time plot.
 #' @author Omar I. Elashkar
 #' @export
@@ -928,27 +970,28 @@ plot_pH_time <- function(
   ph_threshold = 5.4,
   show_id = TRUE,
   stratify_by = "None", 
-  showAvg = FALSE
+  showAvg = FALSE, 
+  showDosing = FALSE
 ) {
+  check_data(res)
   checkmate::assertChoice(
     stratify_by,
     choices = c("None", "Subject", "Group")
   )
 
-  res$id <- as.factor(res$id)
+  obs_data <- split_pH_data(res)[["0"]]
+  obs_data$id <- as.factor(obs_data$id)
   plt <- ggplot2::ggplot(
-    res,
+    obs_data,
     ggplot2::aes(x = time, y = pH, color = id)
   ) +
     ggplot2::geom_line(aes(group = id)) +
     ggplot2::labs(x = "Time", y = "pH") +
     ggplot2::geom_hline(
-      yintercept = ph_threshold,
-      linetype = "dashed",
-      color = "black"
+      aes(yintercept = ph_threshold, color = "threshold"),
+      linetype = "dashed"
     ) +
-    ggplot2::geom_point() + 
-    scale_color_viridis_d()
+    ggplot2::geom_point()
   if (!show_id) {
     plt <- plt + ggplot2::theme(legend.position = "none")
   }
@@ -964,7 +1007,20 @@ plot_pH_time <- function(
     plt <- plt + ggplot2::geom_line(data = avgdata, 
       aes(x = time, y = mean, color = group), linewidth = 1.5)
   }
-  
+  if(showDosing){
+    dosing_data <- split_pH_data(res)[["1"]] |> 
+      dplyr::select(time, id, group) |> dplyr::distinct()
+
+    minpH <- min(obs_data$pH, na.rm = TRUE)
+    dosing_data <- dosing_data |> dplyr::mutate(minpH = minpH)
+    
+    plt <- plt + 
+      ggplot2::geom_segment(data = dosing_data, aes(x = time, xend = time, y = minpH, 
+        yend = -Inf, color = "Administration"), linetype = "solid", 
+        lineend = "round", linejoin = "round",
+        arrow = ggplot2::arrow(length = ggplot2::unit(0.2, "cm"), ends = "last"), size = 1)
+  }
+
   if (stratify_by == "Group") {
     plt <- plt + ggplot2::facet_wrap(~group)
   }
@@ -972,7 +1028,14 @@ plot_pH_time <- function(
     plt <- plt + ggplot2::facet_wrap(~id)
   }
 
-  plt
+  unique_ids <- unique(obs_data$id)
+  id_colors <- scales::hue_pal()(length(unique_ids))
+  id_color_map <- setNames(id_colors, unique_ids) 
+  clr_scales <- c("Administration" = "red", "Average" = "blue", "threshold" = "black", id_color_map)
+  plt + 
+    ggplot2::scale_color_manual(values = clr_scales, na.value = "grey") +
+    ggplot2::theme_minimal()
+
 }
 
 
@@ -1020,15 +1083,17 @@ digitizeread <- function(x) {
 #' @description Fits a pharmacodynamic model to pH data using nonlinear mixed-effects modeling. If `stratify` is TRUE, fits separate models for each group.
 #' @param data Data frame containing pH data. Must include columns: pH, time, id, group.
 #' @param model rxode2/nlmixr2 model to fit.
-#' @param amt Dose amount to administer at time 0.
 #' @param stratify Logical indicating whether to fit separate models for each group (default is FALSE).
 #' @param estmethod Estimation method to use (default is "focei").
-#' @param dose_time Time (positive) of baseline to add before time 0 (default is 5). 
 #' @param include_gamma logical indicating whether to include the gamma parameter in the model (default is TRUE).
 #' @return nlmixr2 fit object.
 #' @author Omar I. Elashkar
 #' @export
-fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei", dose_time = 5,
+fit_pH_curve <- function(data, model, 
+  # amt, 
+  stratify = FALSE, 
+  estmethod = "focei", 
+  # dose_time = 5,
   cov_params = c("kd", "kde", "edk50", "gamma"), cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"), include_gamma = TRUE
 ) {
 
@@ -1037,10 +1102,10 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
   }
   
   check_data(data, sim = TRUE)
-  checkmate::assertNumber(amt, finite = TRUE)
   checkmate::assertLogical(stratify, len = 1)
   checkmate::assertChoice(estmethod, choices = c("focei", "saem", "bobyqa", "uobyqa", "fo", "foce"))
-  checkmate::assertNumber(dose_time, finite = TRUE, upper = Inf, lower = 0)
+  # checkmate::assertNumber(amt, finite = TRUE)
+  # checkmate::assertNumber(dose_time, finite = TRUE, upper = Inf, lower = 0)
   
   model <- rxensure(model)
   if(!include_gamma){
@@ -1053,38 +1118,37 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     dplyr::distinct()
 
   data <- data |>
-    dplyr::mutate(evid = 0, amt = NA_integer_, cmt = NA_character_)
+    dplyr::mutate(cmt = NA_character_) |> 
+    dplyr::rename(evid = "adm")
 
-  data <- split(data, data$id) |>
-    lapply(function(df) {
-      df |> 
-        dplyr::filter(time != dose_time) |> 
-        add_row(
-          pH = NA,
-          id = df$id[1],
-          group = df$group[1],
-          group_code = df$group_code[1],
-          cmt = "depot",
-          evid = 1,
-          amt = amt,
-          time = dose_time,
-          .before = 1
-        )
-    })
+  # data <- split(data, data$id) |>
+  #   lapply(function(df) {
+  #     df |> 
+  #       dplyr::filter(time != dose_time) |> 
+  #       add_row(
+  #         pH = NA,
+  #         id = df$id[1],
+  #         group = df$group[1],
+  #         group_code = df$group_code[1],
+  #         cmt = "depot",
+  #         evid = 1,
+  #         amt = amt,
+  #         time = dose_time,
+  #         .before = 1
+  #       )
+  #   })
+  # data <- do.call(rbind, data) 
 
-  data <- do.call(rbind, data) 
-
-  # check data
-  check_data(data)
   # assert correct dose time for predose for each subject exist 
-  tmpdat <- data |> dplyr::group_by(.data$id) |>
-    dplyr::filter(any(.data$time == dose_time)) |>
-    dplyr::summarise(n_predose = sum(.data$time == dose_time, na.rm = TRUE), .groups = "drop") |>
-    dplyr::ungroup() |>
-    dplyr::filter(n_predose == 0)
-  if(nrow(tmpdat) > 0){
-    stop("Missing predose time point for subject(s): ", paste(tmpdat$id, collapse = ", "))
-  }
+  # tmpdat <- data |> dplyr::group_by(.data$id) |>
+  #   dplyr::filter(any(.data$time == dose_time)) |>
+  #   dplyr::summarise(n_predose = sum(.data$time == dose_time, na.rm = TRUE), .groups = "drop") |>
+  #   dplyr::ungroup() |>
+  #   dplyr::filter(n_predose == 0)
+
+  # if(nrow(tmpdat) > 0){
+  #   stop("Missing predose time point for subject(s): ", paste(tmpdat$id, collapse = ", "))
+  # }
   
 
   data <-   data |> 
@@ -1093,7 +1157,6 @@ fit_pH_curve <- function(data, model, amt, stratify = FALSE, estmethod = "focei"
     dplyr::arrange(id, time)
 
   uniqueids <- unique(data$id)
-
 
 
   if(length(uniqueids) > 1 && length(unique(data$group_code)) > 1){
@@ -1287,7 +1350,6 @@ pHMetrics_from_fit <- function(
   time_start = 0,
   time_end = 50,
   step = 0.1,
-  dose = 100,
   plot = FALSE,
   stratify_by = "None",
   include_gamma = TRUE,
@@ -1306,7 +1368,10 @@ pHMetrics_from_fit <- function(
   dose_time <- x$origData |>
     dplyr::filter(.data$evid == 1) |> 
     dplyr::pull("time") |> unique()
-  baseline_time <- -dose_time
+  
+  dose <- x$origData |>
+    dplyr::filter(.data$evid == 1) |> 
+    dplyr::pull("amt") |> unique()
 
 
   fixedparamdf <- x$parFixedDf |>
@@ -1392,7 +1457,8 @@ pHMetrics_from_fit <- function(
   simRes <- rxSolve(
     new_mod,
     iCov = icovDf, # TODO add flowrate, buffering, substance
-    events = ev
+    events = ev,
+    addDosing = TRUE
   )
 
   # fix any subjects with no variability in pH response
@@ -1442,7 +1508,8 @@ pHMetrics_from_fit <- function(
   
   simRes <- simRes |>
     dplyr::select(-dplyr::starts_with("group"), -dplyr::starts_with("group_code")) |>
-    dplyr::left_join(orig_groups, by = c("id" = "id")) 
+    dplyr::left_join(orig_groups, by = c("id" = "id")) |> 
+    dplyr::rename(adm = "evid")
 
   # no matter if pooled or not, all original groups must have calculations
   stopifnot(length(unique(simRes$group)) == length(unique(x$origData$group)))  
@@ -1453,7 +1520,8 @@ pHMetrics_from_fit <- function(
       simRes,
       show_id = FALSE,
       stratify_by = stratify_by,
-      ph_threshold = ph_threshold
+      ph_threshold = ph_threshold,
+      showDosing = TRUE
     ) +
       labs(
         subtitle = paste0(ifelse(onlymean, "Mean Profile", "Individual Profiles"),

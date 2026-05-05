@@ -60,15 +60,14 @@ test_that("Naive pool single sub", {
         baseline = 7,
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
-    )
+    ) |> sim_to_pH_data()
 
     plot_pH_time(dat)
 
     fit <- fit_pH_curve(
         dat,
         model = kpd_mod(0.8, 0.8, 0.1, 0.8),
-        amt = 100,
-        estmethod = "uobyqa", 
+        estmethod = "bobyqa", 
         cov_params = "ks",
         cov_fixedeffects = "t.ks"
     )
@@ -80,7 +79,6 @@ test_that("Naive pool single sub", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE
     )
     expect_true(pHdatMean$area_under_pH > 0)
@@ -113,15 +111,14 @@ test_that("Naive pool multiple subs, multiple groups", {
     ) |> dplyr::mutate(group = "B", group_code = 2) |> 
         dplyr::mutate(id = id + 30)
 
-    dat <- dplyr::bind_rows(dat, dat2)
+    dat <- dplyr::bind_rows(dat, dat2) |> sim_to_pH_data()
 
     plot_pH_time(dat)
 
     fit <- fit_pH_curve(
         dat,
         model = kpd_mod(0.8, 0.8, 0.1, 0.8),
-        amt = 100,
-        estmethod = "uobyqa"
+        estmethod = "bobyqa"
     )
 
     fit_individual_plot(fit) |> expect_no_error()
@@ -131,7 +128,6 @@ test_that("Naive pool multiple subs, multiple groups", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE
     )
     expect_true(nrow(pHdatMean) == 2)
@@ -371,15 +367,14 @@ test_that("nlme birkhed", {
         "extdata",
         "Birkhed1_copy.csv",
         package = "GatorpH"
-    ))
+    ), dose_time = 0.5)
+    plot_pH_time(d, stratify_by = "Subject", showDosing = TRUE)
 
     # naive fit
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        amt = 100,
         estmethod = "bobyqa",
-        dose_time = 5,
         cov_params = "ks",
         cov_fixedeffects = "t.ks",
         include_gamma = TRUE
@@ -394,7 +389,6 @@ test_that("nlme birkhed", {
             time_start = 0,
             time_end = 50,
             step = 0.1,
-            dose = 100,
             plot = TRUE
         )
     )
@@ -406,11 +400,9 @@ test_that("nlme birkhed", {
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        amt = 100,
         estmethod = "saem",
         cov_params = "ks",
-        cov_fixedeffects = "t.ks",
-        dose_time = 5
+        cov_fixedeffects = "t.ks"
     )
     pHdatnlme <- pHMetrics_from_fit(
         fit,
@@ -418,14 +410,11 @@ test_that("nlme birkhed", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE
     )
 
     expect_false(any(is.na(pHdatnlme$area_under_pH)))
     expect_false(any(is.na(pHdatnlme$edk50)))
-
-    
 
 })
 
@@ -434,7 +423,7 @@ test_that("fejeskov", {
         "extdata",
         "Fejerskov Data_GatorpH Test.csv",
         package = "GatorpH"
-    ), baseline_time = 0)
+    ), dose_time = 1)
 
     expect_false(any(is.na(d$pH)))
 
