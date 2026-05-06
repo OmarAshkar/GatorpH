@@ -10,6 +10,8 @@
   : Plot Observed vs Predicted pH
 - [`fit_pH_curve()`](https://omarashkar.github.io/GatorpH/reference/fit_pH_curve.md)
   : Fit pH Curve using NLME
+- [`format_metrics_tab()`](https://omarashkar.github.io/GatorpH/reference/format_metrics_tab.md)
+  : Format pH Metrics Table
 - [`integratepHArea()`](https://omarashkar.github.io/GatorpH/reference/integratepHArea.md)
   : Integrate Area Under pH Threshold Calculates the area under the pH
   curve below a specified pH threshold using the trapezoidal rule. It
