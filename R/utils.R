@@ -1,3 +1,19 @@
+
+#' KPD Model
+#' @description A kinetic-pharmacodynamic (KPD) model for pH response to drug administration, based on a virtual compartment representing drug elimination and its effect on pH. The model includes parameters for the dose producing 50% of the maximum effect (EDK50), the elimination rate constant from the virtual compartment (KDE), the first-order loss rate of response (KD), the maximum stimulatory effect on response (KS), and the Hill coefficient (gamma). The model also accounts for inter-individual variability in these parameters and includes an additive error term for the response.
+#' @param edk50 Numeric. Dose producing 50% of Emax (default is 10).
+#' @param kde Numeric. Elimination rate constant (1/h) from the virtual compartment KDE (default is 0.1).
+#' @param kd Numeric. First-order loss rate of response (default is 0.5).
+#' @param ks Numeric. Maximum stimulatory effect on response (default is 3.5).
+#' @param gamma Numeric. Hill coefficient (default is 1).
+#' @param eta.edk50 Numeric. Varianceof inter-individual variability for edk50 (default is 0.1).
+#' @param eta.kde Numeric. Variance of inter-individual variability for kde (default is 0.1).
+#' @param eta.kd Numeric. Variance of inter-individual variability for kd (default is 0.1).
+#' @param eta.ks Numeric. Variance of inter-individual variability for ks (default is 0.1).
+#' @param sigma_add Numeric. Additive error standard deviation for the response (default is 0.01).
+#' @return A rxode2 model object representing the KPD model.
+#' @author Omar I. Elashkar
+#' @export
 kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, 
     gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
@@ -53,7 +69,22 @@ kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5,
 }
 
 
-# mlx/Ooi parameterization
+# Ooi parameterization
+#' KPD Model with Ooi Parameterization
+#' @description A kinetic-pharmacodynamic (KPD) model for pH response to drug administration, using the Ooi parameterization. This model includes parameters for the dose producing 50% of the maximum effect (EDK50), the elimination rate constant from the virtual compartment (KDE), the first-order loss rate of response (KD), the maximum stimulatory effect on response (KS), and the Hill coefficient (gamma). The model also accounts for inter-individual variability in these parameters and includes an additive error term for the response.
+#' @param edk50 Numeric. Dose producing 50% of Emax (default is 10).
+#' @param kde Numeric. Elimination rate constant (1/h) from the virtual compartment KDE (default is 0.1).
+#' @param kd Numeric. First-order loss rate of response (default is 0.5).
+#' @param ks Numeric. Maximum stimulatory effect on response (default is 3.5).
+#' @param gamma Numeric. Hill coefficient (default is 1).
+#' @param eta.edk50 Numeric. Variance of inter-individual variability for edk50 (default is 0.1).
+#' @param eta.kde Numeric. Variance of inter-individual variability for kde (default is 0.1).
+#' @param eta.kd Numeric. Variance of inter-individual variability for kd (default is 0.1).
+#' @param eta.ks Numeric. Variance of inter-individual variability for ks (default is 0.1).
+#' @param sigma_add Numeric. Additive error standard deviation for the response (default is 0.01).
+#' @return A rxode2 model object representing the KPD model with Ooi parameterization.
+#' @author Omar I. Elashkar
+#' @export 
 kpd_mod2 <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
     rxode2::ini({
@@ -1200,6 +1231,12 @@ fit_format_param_table <- function(fit) {
   fit$parFixed
 }
 
+#' Plot Observed vs Predicted pH
+#' @description Generates a plot of observed pH values versus predicted pH values from a fitted model, including a reference line for perfect predictions.
+#' @param fit nlmixr2 fit object containing the observed and predicted values.
+#' @return A ggplot2 object representing the observed vs predicted pH plot.
+#' @author Omar I. Elashkar
+#' @export
 fit_obs_vs_ipred_plot <- function(fit) {
   as.data.frame(fit) |>
     ggplot2::ggplot(aes(x = DV, y = IPRED)) +
@@ -1209,6 +1246,12 @@ fit_obs_vs_ipred_plot <- function(fit) {
     ggplot2::theme_minimal()
 }
 
+#' Plot Individual pH Profiles
+#' @description Generates a plot of individual pH profiles over time for each subject/group, including observed points and predicted lines from a fitted model.
+#' @param fit nlmixr2 fit object containing the observed and predicted values.
+#' @return A ggplot2 object representing the individual pH profiles plot.
+#' @author Omar I. Elashkar
+#' @export
 fit_individual_plot <- function(fit) {
   as.data.frame(fit) |>
     dplyr::mutate(ID = as.factor(ID)) |>
@@ -1671,6 +1714,7 @@ get_nsub <- function(x) {
 #' - If input is factor, converts to character then to numeric (preserving original numeric values)
 #' - If input is character, converts to factor then to numeric (assigning numeric codes to unique values)
 #' @author Omar I. Elashkar
+#' @noRd
 factor_to_numeric <- function(x) {
   if (is.numeric(x)) {
     return(x)

@@ -10,10 +10,10 @@ pHMetrics_from_fit(
   time_start = 0,
   time_end = 50,
   step = 0.1,
-  dose = 100,
-  onlymean = TRUE,
   plot = FALSE,
-  stratify_by = "None"
+  stratify_by = "None",
+  include_gamma = TRUE,
+  add_support_points = FALSE
 )
 }
 \arguments{
@@ -27,13 +27,11 @@ pHMetrics_from_fit(
 
 \item{step}{Time step for simulation.}
 
-\item{dose}{Dose amount to administer at time 0.}
-
-\item{onlymean}{Logical indicating whether to simulate only the mean profile (default is TRUE).}
-
 \item{plot}{Logical indicating whether to plot the simulated pH profiles (default is FALSE).}
 
 \item{stratify_by}{Stratification option for plotting ("None", "Subject", "Group").}
+
+\item{dose}{Dose amount to administer at time 0.}
 }
 \value{
 A data frame containing pH metrics calculated from the simulated pH profiles.

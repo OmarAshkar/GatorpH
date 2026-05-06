@@ -4,7 +4,7 @@
 \alias{read_pH}
 \title{Read pH Data}
 \usage{
-read_pH(file_path, baseline = 7, baseline_time = -5)
+read_pH(file_path, dose_time = 1, amt = 100)
 }
 \arguments{
 \item{file_path}{Path to the data file.}

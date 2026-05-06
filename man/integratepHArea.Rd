@@ -11,7 +11,9 @@ integratepHArea(
   time_start = 0,
   time_end = 50,
   method = "linear",
-  interpolate = TRUE
+  interpolate = TRUE,
+  add_support_points = FALSE,
+  plot = FALSE
 )
 }
 \arguments{

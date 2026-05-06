@@ -9,13 +9,22 @@ plot_pH_time(
   ph_threshold = 5.4,
   show_id = TRUE,
   stratify_by = "None",
-  showAvg = FALSE
+  showAvg = FALSE,
+  showDosing = FALSE
 )
 }
 \arguments{
 \item{res}{Data frame containing pH data.}
 
 \item{ph_threshold}{pH threshold to highlight on the plot (default is 5.4).}
+
+\item{show_id}{Logical indicating whether to show subject IDs in the legend (default is TRUE).}
+
+\item{stratify_by}{Variable to stratify the plot by (default is "None"). Options are "None", "Subject", or "Group".}
+
+\item{showAvg}{Logical indicating whether to show the average pH curve across subjects/groups (default is FALSE).}
+
+\item{showDosing}{Logical indicating whether to show dosing times on the plot (default is FALSE).}
 }
 \value{
 A ggplot2 object representing the pH vs time plot.

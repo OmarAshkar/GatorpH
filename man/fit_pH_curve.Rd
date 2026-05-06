@@ -7,10 +7,11 @@
 fit_pH_curve(
   data,
   model,
-  amt,
   stratify = FALSE,
   estmethod = "focei",
-  dose_time = 5
+  cov_params = c("kd", "kde", "edk50", "gamma"),
+  cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"),
+  include_gamma = TRUE
 )
 }
 \arguments{
@@ -18,13 +19,11 @@ fit_pH_curve(
 
 \item{model}{rxode2/nlmixr2 model to fit.}
 
-\item{amt}{Dose amount to administer at time 0.}
-
 \item{stratify}{Logical indicating whether to fit separate models for each group (default is FALSE).}
 
 \item{estmethod}{Estimation method to use (default is "focei").}
 
-\item{dose_time}{Time (positive) of baseline to add before time 0 (default is 5).}
+\item{include_gamma}{logical indicating whether to include the gamma parameter in the model (default is TRUE).}
 }
 \value{
 nlmixr2 fit object.

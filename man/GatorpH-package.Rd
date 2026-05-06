@@ -8,4 +8,13 @@
 \description{
 GatorpH
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/OmarAshkar/GatorpH}
+  \item \url{https://omarashkar.github.io/GatorpH/}
+  \item Report bugs at \url{https://github.com/OmarAshkar/GatorpH/issues}
+}
+
+}
 \keyword{internal}
