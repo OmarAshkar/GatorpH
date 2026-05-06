@@ -12,58 +12,66 @@
 #' @return An rxode2 model object representing the KPD model.
 #' @author Omar I. Elashkar
 #' @export
-kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, 
-    gamma = 1, 
-    eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
-    rxode2::ini({
-        t.edk50 = log(edk50) # dose producing 50% of Emax
-        t.kde = log(kde) # elimination rate constant (1/h) from the virtual compartment KDE
-        t.kd = log(kd)
-        t.ks = log(ks)
-        t.gamma = log(gamma) # Hill coefficient
+kpd_mod <- function(
+  edk50 = 10,
+  kde = 0.1,
+  kd = 0.5,
+  ks = 3.5,
+  gamma = 1,
+  eta.edk50 = 0.1,
+  eta.kde = 0.1,
+  eta.kd = 0.1,
+  eta.ks = 0.1,
+  sigma_add = 0.01
+) {
+  rxode2::ini({
+    t.edk50 = log(edk50) # dose producing 50% of Emax
+    t.kde = log(kde) # elimination rate constant (1/h) from the virtual compartment KDE
+    t.kd = log(kd)
+    t.ks = log(ks)
+    t.gamma = log(gamma) # Hill coefficient
 
-        eta.edk50 ~ eta.edk50
-        eta.kde ~ eta.kde
-        eta.kd ~ eta.kd
-        eta.ks ~ eta.ks
-        eta.gamma ~ 0.1
+    eta.edk50 ~ eta.edk50
+    eta.kde ~ eta.kde
+    eta.kd ~ eta.kd
+    eta.ks ~ eta.ks
+    eta.gamma ~ 0.1
 
-        sigma_add <- sigma_add
-    })
+    sigma_add <- sigma_add
+  })
 
-    rxode2::model({
+  rxode2::model({
+    edk50 <- exp(t.edk50 + eta.edk50)
+    kde <- exp(t.kde + eta.kde)
+    kd <- exp(t.kd + eta.kd)
+    ks <- exp(t.ks + eta.ks)
+    gamma <- exp(t.gamma + eta.gamma)
 
-        edk50 <- exp(t.edk50  + eta.edk50)
-        kde <- exp(t.kde +  eta.kde)
-        kd <- exp(t.kd +  eta.kd)
-        ks <- exp(t.ks +  eta.ks)
-        gamma <- exp(t.gamma + eta.gamma)
+    # depot(0) = amt
+    # ks <- baseline * kd
+    resp(0) = ks / kd # Initial condition for response
 
+    d / dt(depot) = -kde * depot
 
-        # depot(0) = amt
-        # ks <- baseline * kd
-        resp(0) = ks/kd # Initial condition for response
+    IR = kde * depot # drug elimiation rate
+    d / dt(resp) = ks *
+      (1 - (IR)**gamma / (edk50**gamma + (IR)**gamma)) -
+      kd * resp
 
-        d/dt(depot) = -kde * depot
+    resp ~ add(sigma_add)
 
-        IR = kde * depot # drug elimiation rate 
-        d/dt(resp) = ks  * (1 - (IR)**gamma / (edk50**gamma + (IR)**gamma)) - kd*resp 
+    auc(0) = 0
+    # area under the curve below pH
+    if (resp < 5.4) {
+      d / dt(auc) = resp # accumulate AUC when below threshold
+    }
 
-        resp ~ add(sigma_add)
-
-        auc(0) = 0
-        # area under the curve below pH
-        if (resp < 5.4) {
-            d / dt(auc) = resp # accumulate AUC when below threshold
-        }
-
-        # time below pH
-        # time_under_ph(0) = 0
-        # if (resp < 5.4) {
-        #     d / dt(time_under_ph) = 0.1
-        # }
-    })
-
+    # time below pH
+    # time_under_ph(0) = 0
+    # if (resp < 5.4) {
+    #     d / dt(time_under_ph) = 0.1
+    # }
+  })
 }
 
 
@@ -81,50 +89,59 @@ kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5,
 #' @return An rxode2 model object representing the KPD model with linear parameterization.
 #' @author Omar I. Elashkar
 #' @export
-kpd_mod2 <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, gamma = 1, 
-    eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
-    rxode2::ini({
-        t.edk50 = log(edk50) # dose producing 50% of Emax
-        t.kde = log(kde) # elimination rate constant (1/h) from the virtual compartment KDE
-        t.kd = log(kd)
-        t.ks = log(ks)
-        t.gamma = log(gamma) # Hill coefficient
+kpd_mod2 <- function(
+  edk50 = 10,
+  kde = 0.1,
+  kd = 0.5,
+  ks = 3.5,
+  gamma = 1,
+  eta.edk50 = 0.1,
+  eta.kde = 0.1,
+  eta.kd = 0.1,
+  eta.ks = 0.1,
+  sigma_add = 0.01
+) {
+  rxode2::ini({
+    t.edk50 = log(edk50) # dose producing 50% of Emax
+    t.kde = log(kde) # elimination rate constant (1/h) from the virtual compartment KDE
+    t.kd = log(kd)
+    t.ks = log(ks)
+    t.gamma = log(gamma) # Hill coefficient
 
-        eta.edk50 ~ eta.edk50
-        eta.kde ~ eta.kde
-        eta.kd ~ eta.kd
-        eta.ks ~ eta.ks
-        eta.gamma ~ 0.1
+    eta.edk50 ~ eta.edk50
+    eta.kde ~ eta.kde
+    eta.kd ~ eta.kd
+    eta.ks ~ eta.ks
+    eta.gamma ~ 0.1
 
-        sigma_add <- sigma_add
-    })
+    sigma_add <- sigma_add
+  })
 
-    rxode2::model({
+  rxode2::model({
+    edk50 <- exp(t.edk50 + eta.edk50)
+    kde <- exp(t.kde + eta.kde)
+    kd <- exp(t.kd + eta.kd)
+    ks <- exp(t.ks + eta.ks)
+    gamma <- exp(t.gamma + eta.gamma)
 
-        edk50 <- exp(t.edk50 +  eta.edk50)
-        kde <- exp(t.kde + eta.kde)
-        kd <- exp(t.kd + eta.kd)
-        ks <- exp(t.ks + eta.ks)
-        gamma <- exp(t.gamma + eta.gamma)
+    # depot(0) = amt
+    # ks <- baseline * kd
+    resp(0) = ks / kd # Initial condition for response
 
-        # depot(0) = amt
-        # ks <- baseline * kd
-        resp(0) = ks/kd # Initial condition for response
+    d / dt(depot) = -kde * depot
+    # IR = kde * depot
+    ## A / A50 + A
+    d / dt(resp) = ks *
+      (1 - depot**gamma / (edk50**gamma + depot**gamma)) -
+      kd * resp
 
-        d/dt(depot) = -kde * depot
-        # IR = kde * depot
-        ## A / A50 + A
-        d/dt(resp) = ks * (1 - depot**gamma/(edk50**gamma + depot**gamma) ) - kd*resp
-
-        resp ~ add(sigma_add)
-
-    })
-
+    resp ~ add(sigma_add)
+  })
 }
 
 
-getnoVarIds <- function(simRes){
-  if(is.null(simRes$id)){
+getnoVarIds <- function(simRes) {
+  if (is.null(simRes$id)) {
     simRes <- dplyr::mutate(simRes, id = 1)
   }
   novar <- simRes |>
@@ -219,14 +236,16 @@ get_auc_log <- function(time, conc) {
   auc
 }
 
-check_time_varying <- function(x, group = "id", column){
+check_time_varying <- function(x, group = "id", column) {
+  baseline_vary <- x |>
+    dplyr::group_by(.data[[group]]) |>
+    dplyr::summarize(
+      n_baselines = dplyr::n_distinct(.data[[column]]),
+      .groups = "drop"
+    ) |>
+    dplyr::filter(.data$n_baselines > 1)
 
-    baseline_vary <- x |>
-      dplyr::group_by(.data[[group]]) |>
-      dplyr::summarize(n_baselines = dplyr::n_distinct(.data[[column]]), .groups = "drop") |>
-      dplyr::filter(.data$n_baselines > 1)
-
-    nrow(baseline_vary) > 0
+  nrow(baseline_vary) > 0
 }
 
 #' Read pH Data
@@ -237,7 +256,7 @@ check_time_varying <- function(x, group = "id", column){
 #' @return A data frame containing the pH data.
 #' @author Omar I. Elashkar
 #' @export
-read_pH <- function(file_path, dose_time = 1, amt = 100){
+read_pH <- function(file_path, dose_time = 1, amt = 100) {
   checkmate::assertFileExists(file_path)
 
   file_ext <- tools::file_ext(file_path)
@@ -258,45 +277,49 @@ read_pH <- function(file_path, dose_time = 1, amt = 100){
   # remove empty rows (trailing empty)
   dat <- dat |> janitor::remove_empty(which = c("rows"))
 
-
-  if(is.null(dat$group)){
+  if (is.null(dat$group)) {
     dat$group <- "default"
-  } 
-  
-  if(is.null(dat$flowrate)){
+  }
+
+  if (is.null(dat$flowrate)) {
     dat$flowrate <- NA
   }
 
-  if(is.null(dat$buffering)){
+  if (is.null(dat$buffering)) {
     dat$buffering <- NA
   }
 
-  if(check_time_varying(dat, group = "id", column = "group")){
-    stop("Group varies within subject(s). Please ensure unique group for each subject ID in the data.")
+  if (check_time_varying(dat, group = "id", column = "group")) {
+    stop(
+      "Group varies within subject(s). Please ensure unique group for each subject ID in the data."
+    )
   }
-  if(check_time_varying(dat, group = "id", column = "flowrate")){
-    stop("Flowrate varies within subject(s). Please ensure unique flowrate for each subject ID in the data.")
+  if (check_time_varying(dat, group = "id", column = "flowrate")) {
+    stop(
+      "Flowrate varies within subject(s). Please ensure unique flowrate for each subject ID in the data."
+    )
   }
-  if(check_time_varying(dat, group = "id", column = "buffering")){
-    stop("Buffering varies within subject(s). Please ensure unique buffering for each subject ID in the data.")
+  if (check_time_varying(dat, group = "id", column = "buffering")) {
+    stop(
+      "Buffering varies within subject(s). Please ensure unique buffering for each subject ID in the data."
+    )
   }
-
 
   adm_df <- data.frame(time = dose_time, adm = 1, amt = amt)
   stopifnot(nrow(adm_df) == length(dose_time))
 
-  dat <- dat |> 
-    dplyr::group_by(.data$id, .data$group) |> 
-    dplyr::mutate(adm = 0) 
-  
-  dat <- split(dat, dat$id) |> lapply(function(df) {
-    df <- dplyr::bind_rows(df, adm_df) |> 
-      mutate(id = df$id[1], group = df$group[1]) |>
-      dplyr::arrange(time) |>
-      dplyr::mutate(amt = ifelse(.data$adm == 1, amt, NA))
-  }) 
-  dat <- do.call(rbind, dat) 
-  
+  dat <- dat |>
+    dplyr::group_by(.data$id, .data$group) |>
+    dplyr::mutate(adm = 0)
+
+  dat <- split(dat, dat$id) |>
+    lapply(function(df) {
+      df <- dplyr::bind_rows(df, adm_df) |>
+        mutate(id = df$id[1], group = df$group[1]) |>
+        dplyr::arrange(time) |>
+        dplyr::mutate(amt = ifelse(.data$adm == 1, amt, NA))
+    })
+  dat <- do.call(rbind, dat)
 
   # if (is.null(dat$baseline)) {
   #   dat$baseline <- baseline
@@ -314,7 +337,6 @@ read_pH <- function(file_path, dose_time = 1, amt = 100){
 
   # }
 
-  
   # if(!is.null(baseline_time)){
   #   dat <- split(dat, dat$id) |> lapply(function(df) {
   #       predose = data.frame(
@@ -330,23 +352,22 @@ read_pH <- function(file_path, dose_time = 1, amt = 100){
   #       df
   #     })
   #   dat <- do.call(rbind, dat) |>
-  #     dplyr::mutate(time = time + abs(baseline_time)) |> 
+  #     dplyr::mutate(time = time + abs(baseline_time)) |>
   #     dplyr::arrange(id, time)
   # }
-  
-  dat$group_code <- factor_to_numeric(dat$group)
-  dat <- dat |> 
-    # dplyr::select(-"baseline") |>
-    dplyr::mutate(id = as.numeric(id)) |> 
-    janitor::remove_empty(which = c("rows", "cols")) # recheck remove empty
 
+  dat$group_code <- factor_to_numeric(dat$group)
+  dat <- dat |>
+    # dplyr::select(-"baseline") |>
+    dplyr::mutate(id = as.numeric(id)) |>
+    janitor::remove_empty(which = c("rows", "cols")) # recheck remove empty
 
   check_data(dat)
   dat
 }
 
 
-split_pH_data <- function(x){
+split_pH_data <- function(x) {
   split(x, x$adm)
 }
 
@@ -376,24 +397,28 @@ check_data <- function(x, sim = FALSE) {
   checkmate::assertNumeric(x$time, finite = TRUE)
   checkmate::assertNumeric(x$amt, any.missing = TRUE)
 
-  if(!isTRUE(all.equal(sort(unique(x$adm)), c(0,1)))) {
-    stop("Administration indicator (adm) must be binary (0 or 1). Found values: ", paste(unique(x$adm), collapse = ", "))
+  if (!isTRUE(all.equal(sort(unique(x$adm)), c(0, 1)))) {
+    stop(
+      "Administration indicator (adm) must be binary (0 or 1). Found values: ",
+      paste(unique(x$adm), collapse = ", ")
+    )
   }
-  
 
   # ensure group, group_code, and baseline do not vary within each subject
   if ("group" %in% names(x)) {
-    if(check_time_varying(x, group = "id", column = "group")){
-      stop("Group varies within subject(s). Please ensure group is constant for each subject.")
+    if (check_time_varying(x, group = "id", column = "group")) {
+      stop(
+        "Group varies within subject(s). Please ensure group is constant for each subject."
+      )
     }
-    
   }
 
   if ("group_code" %in% names(x)) {
-    if(check_time_varying(x, group = "id", column = "group_code")){
-      stop("Group code varies within subject(s). Please ensure group code is constant for each subject.")
+    if (check_time_varying(x, group = "id", column = "group_code")) {
+      stop(
+        "Group code varies within subject(s). Please ensure group code is constant for each subject."
+      )
     }
-
   }
 
   # if ("baseline" %in% names(x)) {
@@ -401,7 +426,7 @@ check_data <- function(x, sim = FALSE) {
   #     dplyr::group_by(.data$id) |>
   #     dplyr::summarize(n_baselines = dplyr::n_distinct(.data$baseline), .groups = "drop") |>
   #     dplyr::filter(.data$n_baselines > 1)
-    
+
   #   if (nrow(baseline_vary) > 0) {
   #     stop("Baseline varies within subject(s): ", paste(baseline_vary$id, collapse = ", "))
   #   }
@@ -411,7 +436,11 @@ check_data <- function(x, sim = FALSE) {
   if ("group" %in% names(x)) {
     n_groups <- length(unique(x$group))
     if (n_groups > 5) {
-      stop("GatorpH cannot handle more than 10 groups. Found ", n_groups, " groups.")
+      stop(
+        "GatorpH cannot handle more than 10 groups. Found ",
+        n_groups,
+        " groups."
+      )
     }
   }
 
@@ -434,12 +463,13 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
     return(FALSE)
   }
 
-
-  # first point below threshold 
+  # first point below threshold
   timeFirst <- xtime[which(xph < ph_threshold)[1]]
 
   # last point below threshold
-  timeLast <- xtime[which(xph < ph_threshold)[length(which(xph < ph_threshold))]]
+  timeLast <- xtime[which(xph < ph_threshold)[length(which(
+    xph < ph_threshold
+  ))]]
 
   # cross before min pH
   if (any(xph[xtime <= timeFirst] >= ph_threshold, na.rm = TRUE)) {
@@ -464,8 +494,13 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
 #' @return A logical vector of length 2 indicating whether the first and last points cross the threshold.
 #' @author Omar I. Elashkar
 #' @noRd
-check_below_threshold <- function(xtime, xph, ph_threshold = 5.4, start_time = 0, end_time = 50) {
-
+check_below_threshold <- function(
+  xtime,
+  xph,
+  ph_threshold = 5.4,
+  start_time = 0,
+  end_time = 50
+) {
   firstTimePoint <- find_closest(xtime, start_time, threshold = 0.2)
   lastTimePoint <- find_closest(xtime, end_time, threshold = 0.2)
 
@@ -481,10 +516,10 @@ check_below_threshold <- function(xtime, xph, ph_threshold = 5.4, start_time = 0
 find_closest <- function(vec, target, threshold = 0.2) {
   # Calculate absolute differences
   diffs <- abs(vec - target)
-  
+
   # Find the index of the smallest difference
   best_index <- which.min(diffs)
-  
+
   # Check if the smallest difference is within the threshold
   if (diffs[best_index] <= threshold) {
     return(vec[best_index])
@@ -522,8 +557,8 @@ integratepHArea <- function(
   time_start = 0,
   time_end = 50,
   method = "linear",
-  interpolate = TRUE, 
-  add_support_points = FALSE, 
+  interpolate = TRUE,
+  add_support_points = FALSE,
   plot = FALSE
 ) {
   checkmate::assertNumeric(x)
@@ -536,62 +571,109 @@ integratepHArea <- function(
     choices = c("linear", "log", "linear_down_log_up")
   )
 
+  tmpdata <- data.frame(time = x, pH = y)
 
-  tmpdata <- data.frame(time = x, pH = y) 
-    
   # Interpolation is needed as there is usually no support points on the threshold
   if (interpolate) {
     tmpdata <- interpolate_pH(tmpdata$time, tmpdata$pH)
     stopifnot(nrow(tmpdata) >= length(x))
   }
-  
+
   tmpdata <- tmpdata |>
     dplyr::filter(time >= time_start & time <= time_end)
 
-  message("Crossing check: ", paste(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold), collapse = ", "))
-
+  message(
+    "Crossing check: ",
+    paste(
+      check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold),
+      collapse = ", "
+    )
+  )
 
   # The method will add points exactly at the start and end times if there are any existing data points below the threshold plus no crossing with threshold at this time point
-  if(add_support_points){
-    blwThreshold <- check_below_threshold(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold, start_time = time_start, end_time = time_end)
-    checkCross <- check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold)
-    nsupport <- 0 
+  if (add_support_points) {
+    blwThreshold <- check_below_threshold(
+      tmpdata$time,
+      tmpdata$pH,
+      ph_threshold = ph_threshold,
+      start_time = time_start,
+      end_time = time_end
+    )
+    checkCross <- check_crossing(
+      tmpdata$time,
+      tmpdata$pH,
+      ph_threshold = ph_threshold
+    )
+    nsupport <- 0
     len_before <- nrow(tmpdata)
-    for(i in 1:2){
-      if(blwThreshold[i] & !checkCross[i]){
+    for (i in 1:2) {
+      if (blwThreshold[i] & !checkCross[i]) {
         nsupport <- nsupport + 1
-        tmpdata <- rbind(tmpdata, data.frame(time = ifelse(i == 1, time_start, time_end), pH = ph_threshold+0.04))
-        message(paste("Added support point at time", ifelse(i == 1, time_start, time_end), "with pH =", ph_threshold+0.04))
-
-    }
+        tmpdata <- rbind(
+          tmpdata,
+          data.frame(
+            time = ifelse(i == 1, time_start, time_end),
+            pH = ph_threshold + 0.04
+          )
+        )
+        message(paste(
+          "Added support point at time",
+          ifelse(i == 1, time_start, time_end),
+          "with pH =",
+          ph_threshold + 0.04
+        ))
+      }
     }
     tmpdata <- tmpdata[order(tmpdata$time), ]
 
     stopifnot(nsupport >= 0 & nsupport <= 2)
     stopifnot(nrow(tmpdata) == len_before + nsupport)
-    
-    message(paste("Added", nsupport ,"support points at start and end times for integration."))
-    
-    message("Crossing check: ", paste(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold), collapse = ", "))
-  }
 
-  
+    message(paste(
+      "Added",
+      nsupport,
+      "support points at start and end times for integration."
+    ))
 
-  
-
-  if(plot){
-    print(
-      ggplot(tmpdata, aes(x = time, y = pH)) +
-        geom_line() +
-        geom_hline(yintercept = ph_threshold, linetype = "dashed", color = "red") +
-        labs(title = "pH over Time with Threshold", x = "Time", y = "pH", 
-          subtitle =  paste("interpolate = ", interpolate, ", add_support_points = ", add_support_points)) 
+    message(
+      "Crossing check: ",
+      paste(
+        check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold),
+        collapse = ", "
+      )
     )
   }
 
-  if (all(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold))) {
+  if (plot) {
+    print(
+      ggplot(tmpdata, aes(x = time, y = pH)) +
+        geom_line() +
+        geom_hline(
+          yintercept = ph_threshold,
+          linetype = "dashed",
+          color = "red"
+        ) +
+        labs(
+          title = "pH over Time with Threshold",
+          x = "Time",
+          y = "pH",
+          subtitle = paste(
+            "interpolate = ",
+            interpolate,
+            ", add_support_points = ",
+            add_support_points
+          )
+        )
+    )
+  }
+
+  if (
+    all(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold))
+  ) {
     tmpdata <- tmpdata |>
-      dplyr::filter(abs(.data$pH - ph_threshold) <= 0.02 | .data$pH < ph_threshold) # keep only points below threshold or close to it
+      dplyr::filter(
+        abs(.data$pH - ph_threshold) <= 0.02 | .data$pH < ph_threshold
+      ) # keep only points below threshold or close to it
 
     x <- tmpdata$time
     y <- tmpdata$pH
@@ -605,7 +687,7 @@ integratepHArea <- function(
       res <- get_auc_linear_down_log_up(x, y)
     }
 
-    if(length(res) == 0){
+    if (length(res) == 0) {
       res <- NA
     }
   } else {
@@ -631,11 +713,14 @@ calc_time_under_pH <- function(x, ph_threshold = 5.4) {
     # filter only points below pH threshold
     newdata <- newdata[newdata$pH < ph_threshold, ]
 
-    if(min(newdata$time) == Inf | max(newdata$time) == -Inf){
+    if (min(newdata$time) == Inf | max(newdata$time) == -Inf) {
       return(list(start_time = NA, end_time = NA))
     }
 
-    list(start_time = min(newdata$time, na.rm = TRUE), end_time = max(newdata$time, na.rm = TRUE))
+    list(
+      start_time = min(newdata$time, na.rm = TRUE),
+      end_time = max(newdata$time, na.rm = TRUE)
+    )
   }
 
   x |>
@@ -650,8 +735,6 @@ calc_time_under_pH <- function(x, ph_threshold = 5.4) {
     ) |>
     dplyr::ungroup() |>
     dplyr::distinct()
-
-
 }
 
 calc_area_under_pH <- function(
@@ -659,17 +742,22 @@ calc_area_under_pH <- function(
   ph_threshold = 5.4,
   time_start = 0,
   time_end = 50,
-  method = "linear", 
-  add_support_points = FALSE, 
+  method = "linear",
+  add_support_points = FALSE,
   plot = FALSE # print plot for diagnostics
 ) {
   check_data(x)
 
   x <- split_pH_data(x)[["0"]]
 
-  if(min(x$time) > time_start | max(x$time) < time_end){
-    stop(paste("Data does not cover the full integration interval. Consider adjusting time_start and time_end parameters to", 
-      x$time[1], "and", x$time[nrow(x)],"respectively."))
+  if (min(x$time) > time_start | max(x$time) < time_end) {
+    stop(paste(
+      "Data does not cover the full integration interval. Consider adjusting time_start and time_end parameters to",
+      x$time[1],
+      "and",
+      x$time[nrow(x)],
+      "respectively."
+    ))
   }
 
   # plot_pH_time(x)
@@ -684,8 +772,8 @@ calc_area_under_pH <- function(
         time_start = time_start,
         time_end = time_end,
         method = method,
-        interpolate = FALSE, 
-        add_support_points = add_support_points, 
+        interpolate = FALSE,
+        add_support_points = add_support_points,
         plot = plot
       ),
       area_under_pH = integratepHArea(
@@ -695,15 +783,27 @@ calc_area_under_pH <- function(
         time_start = time_start,
         time_end = time_end,
         method = method,
-        interpolate = TRUE, 
+        interpolate = TRUE,
         add_support_points = add_support_points,
         plot = plot
       ),
       .groups = "drop"
     ) |>
-    dplyr::mutate(across(.cols = c("area_under_pH_no_interpolation", "area_under_pH"),
-                  \(x) ifelse(x < 0, 0, x))) |>
-    dplyr::mutate(area_label = paste0("Area < pH_{", ph_threshold, " \\{", time_start, ", ", time_end, "\\} }")) |>
+    dplyr::mutate(across(
+      .cols = c("area_under_pH_no_interpolation", "area_under_pH"),
+      \(x) ifelse(x < 0, 0, x)
+    )) |>
+    dplyr::mutate(
+      area_label = paste0(
+        "Area < pH_{",
+        ph_threshold,
+        " \\{",
+        time_start,
+        ", ",
+        time_end,
+        "\\} }"
+      )
+    ) |>
     dplyr::mutate(dur_label = paste0("T < pH_{", ph_threshold, "}"))
 }
 
@@ -757,7 +857,7 @@ simulate_steph_curve <- function(
   step = 0.1,
   group = "A",
   ignoreBSV = TRUE,
-  ignoreRUV = TRUE, 
+  ignoreRUV = TRUE,
   include_gamma = TRUE
 ) {
   checkmate::assertNumber(dose, finite = TRUE)
@@ -765,12 +865,12 @@ simulate_steph_curve <- function(
   model <- rxensure(model)
   checkmate::assertNumeric(dose_time, lower = 0, upper = Inf)
   checkmate::assertNumeric(baseline, lower = 0, upper = 14, null.ok = TRUE)
-  
-  if(!include_gamma){
+
+  if (!include_gamma) {
     model <- remove_gamma(model)
   }
 
-  if(!is.null(baseline)){
+  if (!is.null(baseline)) {
     inidf <- model$iniDf
     tkd <- inidf[inidf$name == "t.kd", "est"] |> exp()
     kd.sd <- inidf[inidf$name == "eta.kd", "est"] |> sqrt()
@@ -787,14 +887,14 @@ simulate_steph_curve <- function(
     inidf <- inidf[!(inidf$name %in% c("eta.ks", "eta.kd")), ]
     inidf[inidf$name == "t.ks", "est"] <- log(tks)
     model$iniDf <- inidf
-  } 
+  }
 
   ev <- rxode2::et(amt = dose, cmt = "depot", time = abs(dose_time))
   ev <- ev |>
     rxode2::et(time = unique(c(0, time))) |>
     rxode2::et(id = seq(1, nsub))
   if (ignoreBSV) {
-        # resp ~ add(sigma_add)
+    # resp ~ add(sigma_add)
     model <- rxode2::zeroRe(model, which = "omega")
   }
   if (ignoreRUV) {
@@ -802,16 +902,20 @@ simulate_steph_curve <- function(
   }
 
   basecovariates <- c("ks", "kd", "kde", "edk50")
-  if(include_gamma){
+  if (include_gamma) {
     basecovariates <- c(basecovariates, "gamma")
   }
-  model <- parse_covariate(1, model, parameters = basecovariates, 
-    fixed_effects = paste0("t.", basecovariates))
+  model <- parse_covariate(
+    1,
+    model,
+    parameters = basecovariates,
+    fixed_effects = paste0("t.", basecovariates)
+  )
 
   group <- group
   group_code <- factor_to_numeric(group)
-  
-  if(!is.null(baseline)){
+
+  if (!is.null(baseline)) {
     covdf <- data.frame(
       id = seq(1, nsub),
       eta.ks = eta_ks_vals,
@@ -834,18 +938,22 @@ simulate_steph_curve <- function(
   repeat {
     problematic_ids <- getnoVarIds(sim)
 
-    if(length(problematic_ids) == 0 | idx > 10) {
-      if(idx == 10){browser()}
+    if (length(problematic_ids) == 0 | idx > 10) {
+      if (idx == 10) {
+        browser()
+      }
       break
     }
     message(
       "Regenerating subjects with no variability in pH response: ",
       paste(problematic_ids, collapse = ", ")
     )
-    sim2 <- rxode2::rxSolve(model, 
+    sim2 <- rxode2::rxSolve(
+      model,
       events = ev |> dplyr::filter(.data$id %in% problematic_ids),
       iCov = covdf |> dplyr::filter(.data$id %in% problematic_ids),
-      nSub = length(problematic_ids))
+      nSub = length(problematic_ids)
+    )
     # replace only the problematic ids with regenerated subjects
     sim2$id <- rep(
       problematic_ids,
@@ -858,14 +966,16 @@ simulate_steph_curve <- function(
     idx <- idx + 1
   }
 
-  if(length(getnoVarIds(sim)) != 0){
-    stop("Some subjects still have no variability in pH response after regeneration attempts.")
+  if (length(getnoVarIds(sim)) != 0) {
+    stop(
+      "Some subjects still have no variability in pH response after regeneration attempts."
+    )
   }
-  
+
   sim <- as.data.frame(sim)
 
   sim$id <- as.numeric(sim$id)
-  stopifnot(sum(is.na(sim$id)) == 0 )
+  stopifnot(sum(is.na(sim$id)) == 0)
 
   sim$group <- group
   sim$group_code <- group_code
@@ -880,7 +990,7 @@ sim_to_pH_data <- function(x) {
   x <- x |>
     dplyr::rename("adm" = "evid") |>
     dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
-    dplyr::select("id", "group", "group_code", "time", "pH", "adm", "amt") 
+    dplyr::select("id", "group", "group_code", "time", "pH", "adm", "amt")
   check_data(x)
   x
 }
@@ -916,8 +1026,8 @@ plot_pH_time <- function(
   res,
   ph_threshold = 5.4,
   show_id = TRUE,
-  stratify_by = "None", 
-  showAvg = FALSE, 
+  stratify_by = "None",
+  showAvg = FALSE,
   showDosing = FALSE
 ) {
   check_data(res)
@@ -942,47 +1052,70 @@ plot_pH_time <- function(
   if (!show_id) {
     plt <- plt + ggplot2::theme(legend.position = "none")
   }
-  if(showAvg & stratify_by != "Subject"){
+  if (showAvg & stratify_by != "Subject") {
     grouped <- stratify_by == "Group"
-    
+
     restmp <- res |> dplyr::mutate(id = as.numeric(as.character(id)))
     avgdata <- curve_averaging(restmp, interpolate = TRUE, grouped = grouped)
 
-    if(stratify_by != "Group"){
+    if (stratify_by != "Group") {
       avgdata$group <- "Average"
     }
-    plt <- plt + ggplot2::geom_line(data = avgdata, 
-      aes(x = time, y = mean, color = group), linewidth = 1.5)
+    plt <- plt +
+      ggplot2::geom_line(
+        data = avgdata,
+        aes(x = time, y = mean, color = group),
+        linewidth = 1.5
+      )
   }
-  if(showDosing){
-    dosing_data <- split_pH_data(res)[["1"]] |> 
-      dplyr::select(time, id, group) |> dplyr::distinct()
+  if (showDosing) {
+    dosing_data <- split_pH_data(res)[["1"]] |>
+      dplyr::select(time, id, group) |>
+      dplyr::distinct()
 
     minpH <- min(obs_data$pH, na.rm = TRUE)
     dosing_data <- dosing_data |> dplyr::mutate(minpH = minpH)
-    
-    plt <- plt + 
-      ggplot2::geom_segment(data = dosing_data, aes(x = time, xend = time, y = minpH, 
-        yend = -Inf, color = "Administration"), linetype = "solid", 
-        lineend = "round", linejoin = "round",
-        arrow = ggplot2::arrow(length = ggplot2::unit(0.2, "cm"), ends = "last"), size = 1)
+
+    plt <- plt +
+      ggplot2::geom_segment(
+        data = dosing_data,
+        aes(
+          x = time,
+          xend = time,
+          y = minpH,
+          yend = -Inf,
+          color = "Administration"
+        ),
+        linetype = "solid",
+        lineend = "round",
+        linejoin = "round",
+        arrow = ggplot2::arrow(
+          length = ggplot2::unit(0.2, "cm"),
+          ends = "last"
+        ),
+        size = 1
+      )
   }
 
   if (stratify_by == "Group") {
     plt <- plt + ggplot2::facet_wrap(~group)
   }
-  if(stratify_by == "Subject"){
+  if (stratify_by == "Subject") {
     plt <- plt + ggplot2::facet_wrap(~id)
   }
 
   unique_ids <- unique(obs_data$id)
   id_colors <- scales::hue_pal()(length(unique_ids))
-  id_color_map <- setNames(id_colors, unique_ids) 
-  clr_scales <- c("Administration" = "red", "Average" = "blue", "threshold" = "black", id_color_map)
-  plt + 
+  id_color_map <- setNames(id_colors, unique_ids)
+  clr_scales <- c(
+    "Administration" = "red",
+    "Average" = "blue",
+    "threshold" = "black",
+    id_color_map
+  )
+  plt +
     ggplot2::scale_color_manual(values = clr_scales, na.value = "grey") +
     ggplot2::theme_minimal()
-
 }
 
 
@@ -1025,7 +1158,6 @@ digitizeread <- function(x) {
 }
 
 
-
 #' Fit pH Curve using NLME
 #' @description Fits a pharmacodynamic model to pH data using nonlinear mixed-effects modeling. If `stratify` is TRUE, fits separate models for each group.
 #' @param data Data frame containing pH data. Must include columns: pH, time, id, group.
@@ -1038,42 +1170,48 @@ digitizeread <- function(x) {
 #' @return nlmixr2 fit object.
 #' @author Omar I. Elashkar
 #' @export
-fit_pH_curve <- function(data, model, 
-  # amt, 
-  stratify = FALSE, 
-  estmethod = "focei", 
+fit_pH_curve <- function(
+  data,
+  model,
+  # amt,
+  stratify = FALSE,
+  estmethod = "focei",
   # dose_time = 5,
-  cov_params = c("kd", "kde", "edk50", "gamma"), cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"), include_gamma = TRUE
+  cov_params = c("kd", "kde", "edk50", "gamma"),
+  cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"),
+  include_gamma = TRUE
 ) {
-
   if ("ks" %in% cov_params && "kd" %in% cov_params) {
     stop("cov_params cannot contain both 'ks' and 'kd'")
   }
-  
+
   check_data(data, sim = TRUE)
   checkmate::assertLogical(stratify, len = 1)
-  checkmate::assertChoice(estmethod, choices = c("focei", "saem", "bobyqa", "uobyqa", "fo", "foce"))
+  checkmate::assertChoice(
+    estmethod,
+    choices = c("focei", "saem", "bobyqa", "uobyqa", "fo", "foce")
+  )
   # checkmate::assertNumber(amt, finite = TRUE)
   # checkmate::assertNumber(dose_time, finite = TRUE, upper = Inf, lower = 0)
-  
+
   model <- rxensure(model)
-  if(!include_gamma){
+  if (!include_gamma) {
     model <- remove_gamma(model)
   }
-  
+
   # preserve group and group_code information
   group_info <- data |>
     dplyr::select(id, group, group_code) |>
     dplyr::distinct()
 
   data <- data |>
-    dplyr::mutate(cmt = NA_character_) |> 
+    dplyr::mutate(cmt = NA_character_) |>
     dplyr::rename(evid = "adm")
 
   # data <- split(data, data$id) |>
   #   lapply(function(df) {
-  #     df |> 
-  #       dplyr::filter(time != dose_time) |> 
+  #     df |>
+  #       dplyr::filter(time != dose_time) |>
   #       add_row(
   #         pH = NA,
   #         id = df$id[1],
@@ -1086,9 +1224,9 @@ fit_pH_curve <- function(data, model,
   #         .before = 1
   #       )
   #   })
-  # data <- do.call(rbind, data) 
+  # data <- do.call(rbind, data)
 
-  # assert correct dose time for predose for each subject exist 
+  # assert correct dose time for predose for each subject exist
   # tmpdat <- data |> dplyr::group_by(.data$id) |>
   #   dplyr::filter(any(.data$time == dose_time)) |>
   #   dplyr::summarise(n_predose = sum(.data$time == dose_time, na.rm = TRUE), .groups = "drop") |>
@@ -1098,21 +1236,25 @@ fit_pH_curve <- function(data, model,
   # if(nrow(tmpdat) > 0){
   #   stop("Missing predose time point for subject(s): ", paste(tmpdat$id, collapse = ", "))
   # }
-  
 
-  data <-   data |> 
-    dplyr::rename( DV = "pH") |> 
+  data <- data |>
+    dplyr::rename(DV = "pH") |>
     select("id", "group", "group_code", "time", "DV", "evid", "amt", "cmt") |>
     dplyr::arrange(id, time)
 
   uniqueids <- unique(data$id)
 
-
-  if(length(uniqueids) > 1 && length(unique(data$group_code)) > 1){
-    model <- parse_covariate(unique(data$group_code), model, parameters= cov_params, 
-      fixed_effects = cov_fixedeffects)
-  } else{
-    warning("Only one group or one subject in the data. Not including group covariate in the model.")
+  if (length(uniqueids) > 1 && length(unique(data$group_code)) > 1) {
+    model <- parse_covariate(
+      unique(data$group_code),
+      model,
+      parameters = cov_params,
+      fixed_effects = cov_fixedeffects
+    )
+  } else {
+    warning(
+      "Only one group or one subject in the data. Not including group covariate in the model."
+    )
   }
 
   if (estmethod %in% c("bobyqa", "uobyqa", "fo", "foce", "focei")) {
@@ -1134,38 +1276,38 @@ fit_pH_curve <- function(data, model,
     #   est = "uobyqa"
     # )
 
-    # model <- finalFit |> 
-    #   ini(eta.ks = unfix) |> 
-    #   ini(eta.kd = unfix) |> 
-    #   ini(eta.kde=unfix) |> 
-    #   ini(eta.edk50 = unfix) |> 
-    #   ini(sigma_add = unfix) |> 
-      
-    #   ini(eta.ks = 0.1) |> 
-    #   ini(eta.kd = 0.1) |> 
-    #   ini(eta.kde=0.1) |> 
-    #   ini(eta.edk50 = 0.1) |> 
-    #   ini(sigma_add = 0.1) 
+    # model <- finalFit |>
+    #   ini(eta.ks = unfix) |>
+    #   ini(eta.kd = unfix) |>
+    #   ini(eta.kde=unfix) |>
+    #   ini(eta.edk50 = unfix) |>
+    #   ini(sigma_add = unfix) |>
 
-    if(estmethod == "focei"){
+    #   ini(eta.ks = 0.1) |>
+    #   ini(eta.kd = 0.1) |>
+    #   ini(eta.kde=0.1) |>
+    #   ini(eta.edk50 = 0.1) |>
+    #   ini(sigma_add = 0.1)
+
+    if (estmethod == "focei") {
       ctrl <- nlmixr2est::foceiControl(
         maxOuterIterations = 100,
         maxInnerIterations = 100
       )
-    } else if(estmethod == "saem"){
+    } else if (estmethod == "saem") {
       ctrl <- nlmixr2est::saemControl()
-    } 
+    }
 
     finalFit <- nlmixr2est::nlmixr2(
-      model, 
+      model,
       data,
-      est = estmethod, 
+      est = estmethod,
       control = ctrl
     )
   }
 
-  finalFit |> 
-    dplyr::mutate(ID = as.numeric(as.character(.data$ID)))|>
+  finalFit |>
+    dplyr::mutate(ID = as.numeric(as.character(.data$ID))) |>
     # read groups
     dplyr::left_join(group_info, by = c("ID" = "id")) |>
     dplyr::rename(id = "ID")
@@ -1175,15 +1317,22 @@ fit_param_table <- function(fit) {
   fit$parFixed
 }
 
-format_metrics_tab <- function(x){
-
-  x <- x |> 
-    dplyr::select(-c("area_under_pH_no_interpolation", "start_time", "end_time")) |>
+#' Format pH Metrics Table
+#' @description Formats a data frame containing pH metrics for presentation, including formatting numbers, adding labels, and organizing columns into spanners.
+#' @param x Data frame containing pH metrics to format.
+#' @return A gt table object representing the formatted pH metrics table.
+#' @author Omar I. Elashkar
+#' @export
+format_metrics_tab <- function(x) {
+  x <- x |>
+    dplyr::select(
+      -c("area_under_pH_no_interpolation", "start_time", "end_time")
+    ) |>
     dplyr::mutate(area_label = paste0("$$", area_label, "$$")) |>
     dplyr::mutate(dur_label = paste0("$$", dur_label, "$$")) |>
 
-    gt::gt() |> 
-    gt::fmt_number(columns = everything(), decimals = 2) |> 
+    gt::gt() |>
+    gt::fmt_number(columns = everything(), decimals = 2) |>
     gt::fmt_markdown(columns = "area_label") |>
     gt::cols_label(
       id = "ID",
@@ -1200,16 +1349,25 @@ format_metrics_tab <- function(x){
       dplyr::matches("edk50") ~ "EDK50",
       dplyr::matches("gamma") ~ "Gamma",
       .fn = \(x) gt::md(paste0("$$", x, "$$"))
-    ) 
+    )
 
-    x <- x |> 
-      gt::tab_spanner(label = "Model Parameters",
-                      columns = c(matches("ks"), matches("kd"), matches("kde"), matches("edk50"), matches("gamma"))) |> 
-      gt::tab_spanner(label = "pH Metrics", 
-                      columns = c("area_under_pH", "time_under_pH", "pH_min", "t_min"))
+  x <- x |>
+    gt::tab_spanner(
+      label = "Model Parameters",
+      columns = c(
+        matches("ks"),
+        matches("kd"),
+        matches("kde"),
+        matches("edk50"),
+        matches("gamma")
+      )
+    ) |>
+    gt::tab_spanner(
+      label = "pH Metrics",
+      columns = c("area_under_pH", "time_under_pH", "pH_min", "t_min")
+    )
 
-    x 
-
+  x
 }
 
 
@@ -1246,7 +1404,6 @@ fit_individual_plot <- function(fit) {
 }
 
 
-
 #' Run direct estimation for pH data
 #' @description Runs direct estimation calculations for pH data, including minimum pH, time to minimum pH, time under pH threshold, and AUC under pH threshold.
 #' @param x Data frame containing pH data.
@@ -1260,9 +1417,9 @@ run_direct_estimation <- function(
   x,
   ph_threshold = 5.4,
   time_start = 0,
-  time_end = 50, 
-  method = "linear", 
-  add_support_points = FALSE, 
+  time_end = 50,
+  method = "linear",
+  add_support_points = FALSE,
   use_baseline = TRUE
 ) {
   check_data(x)
@@ -1277,7 +1434,7 @@ run_direct_estimation <- function(
     x,
     ph_threshold = ph_threshold,
     time_start = time_start,
-    time_end = time_end, 
+    time_end = time_end,
     method = method,
     add_support_points = add_support_points
   )
@@ -1325,94 +1482,141 @@ pHMetrics_from_fit <- function(
   # fit_individual_plot(x)
 
   dose_time <- x$origData |>
-    dplyr::filter(.data$evid == 1) |> 
-    dplyr::pull("time") |> unique()
-  
-  dose <- x$origData |>
-    dplyr::filter(.data$evid == 1) |> 
-    dplyr::pull("amt") |> unique()
+    dplyr::filter(.data$evid == 1) |>
+    dplyr::pull("time") |>
+    unique()
 
+  dose <- x$origData |>
+    dplyr::filter(.data$evid == 1) |>
+    dplyr::pull("amt") |>
+    unique()
 
   fixedparamdf <- x$parFixedDf |>
     tibble::rownames_to_column("name") |>
     dplyr::select(name, Estimate) |>
-    tidyr::pivot_wider(names_from = "name", values_from = "Estimate") |> 
+    tidyr::pivot_wider(names_from = "name", values_from = "Estimate") |>
     dplyr::select(dplyr::starts_with("t."))
 
   has_covariates <- any(grepl("cov_", rownames(x$parFixedDf)))
-  if(has_covariates){
-    if(length(unique(x$origData$group_code)) > 1){
-      icovDf <- as.data.frame(x) |> 
-        dplyr::select("id", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
+  if (has_covariates) {
+    if (length(unique(x$origData$group_code)) > 1) {
+      icovDf <- as.data.frame(x) |>
+        dplyr::select(
+          "id",
+          dplyr::starts_with("group"),
+          dplyr::starts_with("eta."),
+          dplyr::starts_with("cov_")
+        ) |>
         dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
-        tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
-          names_to = "covariate", values_to = "value") |>
-        dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
+        tidyr::pivot_longer(
+          cols = dplyr::starts_with("cov_"),
+          names_to = "covariate",
+          values_to = "value"
+        ) |>
+        dplyr::mutate(
+          covariate = paste0(.data$covariate, "_", .data$group_code)
+        ) |>
         dplyr::distinct() |>
-        tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
+        tidyr::pivot_wider(
+          names_from = "covariate",
+          values_from = "value",
+          values_fill = 0
+        ) |>
         dplyr::distinct() |>
         dplyr::mutate(id = as.numeric(as.character(.data$id)))
     } else {
-      icovDf <- as.data.frame(x) |> 
-        dplyr::select("id", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
+      icovDf <- as.data.frame(x) |>
+        dplyr::select(
+          "id",
+          dplyr::starts_with("group"),
+          dplyr::starts_with("eta."),
+          dplyr::starts_with("cov_")
+        ) |>
         dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
-        # add covariate manually 
-        mutate(cov_ks = 0, cov_edk50 = 0, cov_kd = 0, cov_kde = 0, cov_gamma = 0) |>
-        tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
-          names_to = "covariate", values_to = "value") |>
-        dplyr::mutate(covariate = paste0(.data$covariate, "_", .data$group_code)) |> 
+        # add covariate manually
+        mutate(
+          cov_ks = 0,
+          cov_edk50 = 0,
+          cov_kd = 0,
+          cov_kde = 0,
+          cov_gamma = 0
+        ) |>
+        tidyr::pivot_longer(
+          cols = dplyr::starts_with("cov_"),
+          names_to = "covariate",
+          values_to = "value"
+        ) |>
+        dplyr::mutate(
+          covariate = paste0(.data$covariate, "_", .data$group_code)
+        ) |>
         dplyr::distinct() |>
-        tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
+        tidyr::pivot_wider(
+          names_from = "covariate",
+          values_from = "value",
+          values_fill = 0
+        ) |>
         dplyr::distinct() |>
         dplyr::mutate(id = as.numeric(as.character(.data$id)))
     }
-  } else { # if no covariates, just get ID and group information
-    icovDf <- as.data.frame(x) |> 
-      dplyr::select("id", dplyr::starts_with("group"), dplyr::starts_with("eta.")) |> 
+  } else {
+    # if no covariates, just get ID and group information
+    icovDf <- as.data.frame(x) |>
+      dplyr::select(
+        "id",
+        dplyr::starts_with("group"),
+        dplyr::starts_with("eta.")
+      ) |>
       dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
       dplyr::distinct() |>
-      dplyr::mutate(id = as.numeric(as.character(.data$id))) 
+      dplyr::mutate(id = as.numeric(as.character(.data$id)))
   }
 
   new_mod <- model |> rxode2::zeroRe(which = "sigma")
-  
+
   ev <- rxode2::et(amt = dose, cmt = "depot", time = dose_time) |> # use dose_time here
-      rxode2::et(time = time) 
+    rxode2::et(time = time)
 
-  newini <- new_mod$iniDf |> 
-    dplyr::filter(!grepl("eta\\.", .data$name), !grepl("cov_", .data$name)) 
+  newini <- new_mod$iniDf |>
+    dplyr::filter(!grepl("eta\\.", .data$name), !grepl("cov_", .data$name))
 
-  # assert fixed effects parameter are final 
-  newini <- newini |> 
-    dplyr::mutate(est = dplyr::case_when(
-      name == "t.edk50" ~ fixedparamdf$t.edk50,
-      name == "t.kde" ~ fixedparamdf$t.kde,
-      name == "t.kd" ~ fixedparamdf$t.kd,
-      name == "t.ks" ~ fixedparamdf$t.ks,
-      name == "t.gamma" ~ fixedparamdf$t.gamma,
-      TRUE ~ est
-    ))
+  # assert fixed effects parameter are final
+  newini <- newini |>
+    dplyr::mutate(
+      est = dplyr::case_when(
+        name == "t.edk50" ~ fixedparamdf$t.edk50,
+        name == "t.kde" ~ fixedparamdf$t.kde,
+        name == "t.kd" ~ fixedparamdf$t.kd,
+        name == "t.ks" ~ fixedparamdf$t.ks,
+        name == "t.gamma" ~ fixedparamdf$t.gamma,
+        TRUE ~ est
+      )
+    )
 
   rxode2::ini(new_mod) <- newini
 
   if (onlymean) {
-    icovDf <- icovDf |> 
+    icovDf <- icovDf |>
       # dplyr::mutate(across(starts_with("eta."), ~ 0)) |>
-      dplyr::mutate(eta.edk50 = 0, eta.kde = 0, eta.kd = 0, eta.ks = 0, eta.gamma = 0) |> # ensure regressors
-      dplyr::distinct() 
-  } 
-
-  if(!include_gamma){
-    icovDf <- icovDf |> 
-      dplyr::mutate(eta.gamma = 0) 
+      dplyr::mutate(
+        eta.edk50 = 0,
+        eta.kde = 0,
+        eta.kd = 0,
+        eta.ks = 0,
+        eta.gamma = 0
+      ) |> # ensure regressors
+      dplyr::distinct()
   }
 
-  
+  if (!include_gamma) {
+    icovDf <- icovDf |>
+      dplyr::mutate(eta.gamma = 0)
+  }
+
   ids <- as.numeric(as.character(unique(icovDf$id)))
   ev <- rxode2::et(amt = dose, cmt = "depot", time = dose_time) |> # use dose_time here
     rxode2::et(time = time) |>
     rxode2::et(id = ids)
-  
+
   simRes <- rxSolve(
     new_mod,
     iCov = icovDf, # TODO add flowrate, buffering, substance
@@ -1422,11 +1626,13 @@ pHMetrics_from_fit <- function(
 
   # fix any subjects with no variability in pH response
   idx <- 1
-  repeat{
+  repeat {
     problematic_ids <- getnoVarIds(simRes)
 
-    if(length(problematic_ids) == 0 | idx > 10) {
-      if(idx == 10){browser()}
+    if (length(problematic_ids) == 0 | idx > 10) {
+      if (idx == 10) {
+        browser()
+      }
       break
     }
     message(
@@ -1446,33 +1652,36 @@ pHMetrics_from_fit <- function(
   }
 
   stopifnot(length(getnoVarIds(simRes)) == 0)
-  
-  if(is.null(simRes$id)){
+
+  if (is.null(simRes$id)) {
     simRes <- dplyr::mutate(simRes, id = x$origData$id[1])
   }
   simRes <- as.data.frame(simRes) |>
     dplyr::group_by(.data$id) |>
     dplyr::filter(sum(.data$resp, na.rm = TRUE) > 0) |>
-    dplyr::ungroup() |> 
+    dplyr::ungroup() |>
     dplyr::rename(pH = "resp")
 
   # simRes$id <- as.factor(simRes$sim.id)
-  
+
   # Get original groups from x$origData
   orig_groups <- icovDf |>
     dplyr::select("id", "group", "group_code") |>
-    dplyr::distinct() |> 
+    dplyr::distinct() |>
     dplyr::mutate(id = as.numeric(as.character(.data$id)))
-  
+
   simRes <- simRes |>
-    dplyr::select(-dplyr::starts_with("group"), -dplyr::starts_with("group_code")) |>
-    dplyr::left_join(orig_groups, by = c("id" = "id")) |> 
+    dplyr::select(
+      -dplyr::starts_with("group"),
+      -dplyr::starts_with("group_code")
+    ) |>
+    dplyr::left_join(orig_groups, by = c("id" = "id")) |>
     dplyr::rename(adm = "evid")
 
   # no matter if pooled or not, all original groups must have calculations
-  stopifnot(length(unique(simRes$group)) == length(unique(x$origData$group)))  
+  stopifnot(length(unique(simRes$group)) == length(unique(x$origData$group)))
   stopifnot(unique(simRes$group) == unique(x$origData$group))
-  
+
   if (plot) {
     plt <- plot_pH_time(
       simRes,
@@ -1482,45 +1691,51 @@ pHMetrics_from_fit <- function(
       showDosing = TRUE
     ) +
       labs(
-        subtitle = paste0(ifelse(onlymean, "Mean Profile", "Individual Profiles"),
-          " from method ", estMethod)
+        subtitle = paste0(
+          ifelse(onlymean, "Mean Profile", "Individual Profiles"),
+          " from method ",
+          estMethod
+        )
       )
-      if(!onlymean){
-        originalData <- nlme::getData(x) |> dplyr::filter(.data$evid == 0)
-        plt <- plt + ggplot2::geom_point(
-          data = originalData, 
+    if (!onlymean) {
+      originalData <- nlme::getData(x) |> dplyr::filter(.data$evid == 0)
+      plt <- plt +
+        ggplot2::geom_point(
+          data = originalData,
           aes(x = .data$time, y = .data$DV),
           color = "red",
-          size = 1, 
+          size = 1,
           shape = 4
         )
-      }
+    }
 
     print(plt)
   } else {
     plt <- NA
   }
 
-  derivedDf <- run_direct_estimation(simRes, ph_threshold = ph_threshold, 
-    add_support_points = add_support_points) |> 
-    as.data.frame() 
+  derivedDf <- run_direct_estimation(
+    simRes,
+    ph_threshold = ph_threshold,
+    add_support_points = add_support_points
+  ) |>
+    as.data.frame()
 
-  
-  if(onlymean){ 
-      derivedDf <- derivedDf |> 
-        # replace actual id with placeholder
-        dplyr::mutate(id = ifelse(onlymean, 
-        ".", 
-        as.numeric(as.character(.data$id)))) 
-    }
+  if (onlymean) {
+    derivedDf <- derivedDf |>
+      # replace actual id with placeholder
+      dplyr::mutate(
+        id = ifelse(onlymean, ".", as.numeric(as.character(.data$id)))
+      )
+  }
 
   stopifnot(nrow(derivedDf) == nrow(icovDf))
 
-  if(onlymean){
-    paramsdf <- as.data.frame(x) |> 
+  if (onlymean) {
+    paramsdf <- as.data.frame(x) |>
       dplyr::mutate(id = ".")
   } else {
-    paramsdf <- as.data.frame(x) |> 
+    paramsdf <- as.data.frame(x) |>
       dplyr::mutate(id = as.numeric(as.character(.data$id)))
   }
 
@@ -1528,34 +1743,63 @@ pHMetrics_from_fit <- function(
   if ("gamma" %in% names(paramsdf)) {
     param_cols <- c(param_cols, "gamma")
   }
-  
-  derivedDf <-  dplyr::left_join(
-      derivedDf,
-      paramsdf |>
-        dplyr::select(dplyr::all_of(c("id", param_cols, "group"))) |>
-        dplyr::group_by(.data$id, .data$group) |>
-        dplyr::summarize(across(dplyr::all_of(param_cols), mean), .groups = "keep") |>
-        dplyr::ungroup() |>
-        dplyr::distinct(),
-      by = c("id" = "id", "group" = "group")
-    )
-  
-      
 
-  if(onlymean){
-    derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "pH_min", "t_min", "start_time", "end_time", "time_under_pH", "area_under_pH", "area_under_pH_no_interpolation")
+  derivedDf <- dplyr::left_join(
+    derivedDf,
+    paramsdf |>
+      dplyr::select(dplyr::all_of(c("id", param_cols, "group"))) |>
+      dplyr::group_by(.data$id, .data$group) |>
+      dplyr::summarize(
+        across(dplyr::all_of(param_cols), mean),
+        .groups = "keep"
+      ) |>
+      dplyr::ungroup() |>
+      dplyr::distinct(),
+    by = c("id" = "id", "group" = "group")
+  )
+
+  if (onlymean) {
+    derived_summarize_cols <- c(
+      "edk50",
+      "kde",
+      "kd",
+      "ks",
+      "pH_min",
+      "t_min",
+      "start_time",
+      "end_time",
+      "time_under_pH",
+      "area_under_pH",
+      "area_under_pH_no_interpolation"
+    )
 
     if ("gamma" %in% names(derivedDf)) {
-      derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "gamma", "pH_min", "t_min", "start_time", "end_time", "time_under_pH", "area_under_pH", "area_under_pH_no_interpolation")
+      derived_summarize_cols <- c(
+        "edk50",
+        "kde",
+        "kd",
+        "ks",
+        "gamma",
+        "pH_min",
+        "t_min",
+        "start_time",
+        "end_time",
+        "time_under_pH",
+        "area_under_pH",
+        "area_under_pH_no_interpolation"
+      )
     }
-    
-    derivedDf <- derivedDf |> 
+
+    derivedDf <- derivedDf |>
       dplyr::group_by(.data$group, .data$area_label) |>
-      dplyr::summarize(across(dplyr::all_of(derived_summarize_cols), mean), .groups = "keep") |>
+      dplyr::summarize(
+        across(dplyr::all_of(derived_summarize_cols), mean),
+        .groups = "keep"
+      ) |>
       dplyr::ungroup() |>
       dplyr::mutate(id = ".")
     stopifnot(nrow(derivedDf) == length(unique(x$origData$group_code)))
-  } else{
+  } else {
     stopifnot(nrow(derivedDf) == length(unique(x$origData$id)))
   }
   stopifnot(sort(unique(derivedDf$group)) == sort(unique(x$origData$group)))
@@ -1564,45 +1808,50 @@ pHMetrics_from_fit <- function(
 }
 
 curve_averaging <- function(
-    x,
-    na.rm = TRUE,
-    interpolate = TRUE,
-    xout = seq(0, 50, by = 0.1),
-    grouped = FALSE
-  ) {
-    check_data(x)
+  x,
+  na.rm = TRUE,
+  interpolate = TRUE,
+  xout = seq(0, 50, by = 0.1),
+  grouped = FALSE
+) {
+  check_data(x)
 
-    df <- x |>
-      dplyr::select(time, pH, id, dplyr::all_of(if (grouped) "group" else character()))
+  df <- x |>
+    dplyr::select(
+      time,
+      pH,
+      id,
+      dplyr::all_of(if (grouped) "group" else character())
+    )
 
-    if (!grouped) {
-      df <- df |>
-        dplyr::mutate(group = "All")
-    }
-
-    if(interpolate){
-      df <- df |>
-        group_by(.data$id, .data$group) |>
-        dplyr::reframe(
-          x_new = xout,
-          y_new = approx(time, pH, xout = xout)$y
-        ) |>
-        dplyr::filter(!is.na(.data$y_new)) |> # Remove rows with NA values
-        dplyr::ungroup() |> 
-        dplyr::rename(pH = .data$y_new, time = .data$x_new)
-    }
-    
-    avg_df <- df |>
-      dplyr::group_by(.data$time, .data$group) |>
-      dplyr::summarise(
-        mean = mean(.data$pH, na.rm = na.rm),
-        sd = sd(.data$pH, na.rm = na.rm),
-        n = sum(!is.na(.data$pH)),
-        .groups = "drop"
-      )
-
-    avg_df
+  if (!grouped) {
+    df <- df |>
+      dplyr::mutate(group = "All")
   }
+
+  if (interpolate) {
+    df <- df |>
+      group_by(.data$id, .data$group) |>
+      dplyr::reframe(
+        x_new = xout,
+        y_new = approx(time, pH, xout = xout)$y
+      ) |>
+      dplyr::filter(!is.na(.data$y_new)) |> # Remove rows with NA values
+      dplyr::ungroup() |>
+      dplyr::rename(pH = .data$y_new, time = .data$x_new)
+  }
+
+  avg_df <- df |>
+    dplyr::group_by(.data$time, .data$group) |>
+    dplyr::summarise(
+      mean = mean(.data$pH, na.rm = na.rm),
+      sd = sd(.data$pH, na.rm = na.rm),
+      n = sum(!is.na(.data$pH)),
+      .groups = "drop"
+    )
+
+  avg_df
+}
 
 plot_curve_averaging <- function(x) {
   group <- length(unique(x$group)) > 1
@@ -1616,14 +1865,13 @@ plot_curve_averaging <- function(x) {
       alpha = 0.2,
       fill = "lightblue"
     )
-  
+
   if (group) {
     plt <- plt + ggplot2::facet_wrap(~group)
   }
-  
+
   plt
 }
-
 
 
 avg_to_pHdata <- function(x) {
@@ -1640,7 +1888,6 @@ avg_to_pHdata <- function(x) {
     group = factor("A")
   )
 }
-
 
 
 get_nsub <- function(x) {
@@ -1680,30 +1927,32 @@ factor_to_numeric <- function(x) {
 #' @return A modified rxode2 model object with added covariate effects for the specified parameters based on the provided groups.
 #' @details
 #' The fixed effects must be mu-referenced.
-#' @noRd 
+#' @noRd
 #' @author Omar I. Elashkar
-parse_covariate <- function(groups, 
-  model = kpd_mod, 
+parse_covariate <- function(
+  groups,
+  model = kpd_mod,
   cov_name = "group_code",
-  parameters = c("edk50", "kde", "kd", "ks", "gamma"), 
+  parameters = c("edk50", "kde", "kd", "ks", "gamma"),
   fixed_effects = c("t.edk50", "t.kde", "t.kd", "t.ks", "t.gamma")
-  ) {
-
+) {
   model <- rxensure(model)
 
   if (is.null(parameters) && is.null(fixed_effects)) {
     return(model)
   }
   if (xor(is.null(parameters), is.null(fixed_effects))) {
-    stop("`parameters` and `fixed_effects` must both be NULL or both be non-NULL")
+    stop(
+      "`parameters` and `fixed_effects` must both be NULL or both be non-NULL"
+    )
   }
-  
+
   checkmate::assertIntegerish(groups, lower = 0)
   stopifnot(length(parameters) == length(fixed_effects))
   groups <- factor_to_numeric(groups)
 
   n_groups <- unique(length(groups))
-  if(n_groups > 5){
+  if (n_groups > 5) {
     stop("Currently, GatorpH cannot handle 10 groups")
   }
 
@@ -1715,25 +1964,32 @@ parse_covariate <- function(groups,
     group = unique(groups)[-1] # exclude reference group
   ) |>
     dplyr::mutate(cov_name = paste0("cov_", .data$parameter, "_", .data$group))
-  
+
   oini <- model$iniDf
   ntheta <- max(as.numeric(oini$ntheta), na.rm = TRUE)
-  ini <- dplyr::bind_rows(oini,
-    cov_parameters |> 
-      dplyr::select(cov_name) |> 
+  ini <- dplyr::bind_rows(
+    oini,
+    cov_parameters |>
+      dplyr::select(cov_name) |>
       dplyr::mutate(ntheta = ntheta + dplyr::row_number()) |>
-      dplyr::mutate(name = .data$cov_name, est = 0.5, upper = Inf, lower = -Inf, fix = FALSE) |>
+      dplyr::mutate(
+        name = .data$cov_name,
+        est = 0.5,
+        upper = Inf,
+        lower = -Inf,
+        fix = FALSE
+      ) |>
       dplyr::select(name, ntheta, est, lower, upper, fix)
   ) |>
     dplyr::arrange(ntheta, neta1, neta2, name)
 
-  # new ini 
+  # new ini
   new_mod <- model
 
   # cov ifelse block by group
   ref_group <- unique(groups)[1]
   other_groups <- unique(groups)[-1]
-  
+
   cov_ifelse_lines <- c()
 
   add_covariate_to_param_line <- function(lines, param) {
@@ -1750,7 +2006,12 @@ parse_covariate <- function(groups,
       if (!is.call(expr)) {
         return(FALSE)
       }
-      any(vapply(as.list(expr)[-1], has_symbol, logical(1), symbol_name = symbol_name))
+      any(vapply(
+        as.list(expr)[-1],
+        has_symbol,
+        logical(1),
+        symbol_name = symbol_name
+      ))
     }
 
     inject_covariate_effect <- function(expr, param) {
@@ -1764,7 +2025,11 @@ parse_covariate <- function(groups,
       cov_expr <- substitute(1 - x, list(x = as.name(cov_name)))
 
       flatten_plus_terms <- function(node) {
-        if (is.call(node) && identical(as.character(node[[1]]), "+") && length(node) == 3) {
+        if (
+          is.call(node) &&
+            identical(as.character(node[[1]]), "+") &&
+            length(node) == 3
+        ) {
           c(flatten_plus_terms(node[[2]]), flatten_plus_terms(node[[3]]))
         } else {
           list(node)
@@ -1782,7 +2047,9 @@ parse_covariate <- function(groups,
         terms <- flatten_plus_terms(expr)
         eta_idx <- which(vapply(
           terms,
-          function(term) is.symbol(term) && identical(as.character(term), eta_name),
+          function(term) {
+            is.symbol(term) && identical(as.character(term), eta_name)
+          },
           logical(1)
         ))
 
@@ -1804,7 +2071,11 @@ parse_covariate <- function(groups,
       rhs_txt <- sub(assign_pattern, "\\1", lines[i], perl = TRUE)
       rhs_expr <- parse(text = rhs_txt)[[1]]
 
-      if (is.call(rhs_expr) && identical(as.character(rhs_expr[[1]]), "exp") && length(rhs_expr) >= 2) {
+      if (
+        is.call(rhs_expr) &&
+          identical(as.character(rhs_expr[[1]]), "exp") &&
+          length(rhs_expr) >= 2
+      ) {
         rhs_expr[[2]] <- inject_covariate_effect(rhs_expr[[2]], param)
       } else {
         rhs_expr <- inject_covariate_effect(rhs_expr, param)
@@ -1816,69 +2087,82 @@ parse_covariate <- function(groups,
 
     lines
   }
-  
+
   # Reference group: all covariate effects = 1
   for (param in parameters) {
-    cov_ifelse_lines <- c(cov_ifelse_lines,
+    cov_ifelse_lines <- c(
+      cov_ifelse_lines,
       paste0("if(", cov_name, " == ", ref_group, ") {"),
       paste0("  cov_", param, " <- 1"),
-      "}")
+      "}"
+    )
   }
-  
+
   # Other groups: covariate effects by parameter
   for (grp in other_groups) {
     for (param in parameters) {
-      cov_ifelse_lines <- c(cov_ifelse_lines,
+      cov_ifelse_lines <- c(
+        cov_ifelse_lines,
         paste0("if(", cov_name, " == ", grp, ") {"),
         paste0("  cov_", param, " <- cov_", param, "_", grp),
-        "}")
+        "}"
+      )
     }
   }
-  
+
   omodel_lines <- rxode2::modelExtract(new_mod, endpoint = NA)
 
   for (param in parameters) {
     omodel_lines <- add_covariate_to_param_line(omodel_lines, param)
   }
-  
+
   # Combine cov_ifelse_lines and omodel_lines, then evaluate as model code
   model_code <- c(cov_ifelse_lines, omodel_lines)
-  
+
   # Build model code string and evaluate with base R
   new_mod <- rxode2::rxUiDecompress(new_mod)
-  new_mod$lstExpr <- as.list(str2lang(paste0("{", paste(model_code, collapse="\n"), "}"))[-1])
+  new_mod$lstExpr <- as.list(str2lang(paste0(
+    "{",
+    paste(model_code, collapse = "\n"),
+    "}"
+  ))[-1])
   new_mod$ini <- ini
   new_mod <- new_mod$fun()
   rxode2::ini(new_mod) <- ini
   new_mod
 }
 
-remove_gamma <- function(model){
+remove_gamma <- function(model) {
   model <- rxensure(model)
-  model <- model |> 
-    rxode2::ini(t.gamma = log(1), eta.gamma = 0) |> 
-    rxode2::ini(t.gamma = fix) 
+  model <- model |>
+    rxode2::ini(t.gamma = log(1), eta.gamma = 0) |>
+    rxode2::ini(t.gamma = fix)
 
   model
 }
 
 
 theme_academic <- function(base_size = 18, base_family = "Arial") {
-    theme_classic(base_size = base_size, base_family = base_family) %+replace%
+  theme_classic(base_size = base_size, base_family = base_family) %+replace%
     theme(
-        # Center and bold the title for clarity
-        plot.title = element_text(size = rel(1.2), face = "bold", hjust = 0.5, margin = margin(b = 10)),
-        # Enhance axis appearance
-        axis.title = element_text(size = rel(1.1), face = "bold"),
-        axis.text = element_text(size = rel(1.0), color = "black"),
-        axis.line = element_line(linewidth = 0.8, color = "black"),
-    
-        # Legend formatting
-        legend.title = element_text(size = rel(1.0), face = "bold"),
-        legend.text = element_text(size = rel(0.9)),
-        legend.position = "right",
-        # Remove any remaining clutter
-        panel.background = element_blank(),
-        plot.margin = margin(10, 10, 10, 10)
+      # Center and bold the title for clarity
+      plot.title = element_text(
+        size = rel(1.2),
+        face = "bold",
+        hjust = 0.5,
+        margin = margin(b = 10)
+      ),
+      # Enhance axis appearance
+      axis.title = element_text(size = rel(1.1), face = "bold"),
+      axis.text = element_text(size = rel(1.0), color = "black"),
+      axis.line = element_line(linewidth = 0.8, color = "black"),
+
+      # Legend formatting
+      legend.title = element_text(size = rel(1.0), face = "bold"),
+      legend.text = element_text(size = rel(0.9)),
+      legend.position = "right",
+      # Remove any remaining clutter
+      panel.background = element_blank(),
+      plot.margin = margin(10, 10, 10, 10)
     )
 }
