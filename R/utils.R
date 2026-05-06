@@ -1179,7 +1179,8 @@ fit_pH_curve <- function(
   # dose_time = 5,
   cov_params = c("kd", "kde", "edk50", "gamma"),
   cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"),
-  include_gamma = TRUE
+  include_gamma = TRUE,
+   nprint = 50
 ) {
   if ("ks" %in% cov_params && "kd" %in% cov_params) {
     stop("cov_params cannot contain both 'ks' and 'kd'")
@@ -1258,10 +1259,12 @@ fit_pH_curve <- function(
   }
 
   if (estmethod %in% c("bobyqa", "uobyqa", "fo", "foce", "focei")) {
+    ctrl <- eval(parse(text=paste0("nlmixr2est::", estmethod, "Control", sep = "")))
     finalFit <- nlmixr2est::nlmixr2(
       zeroRe(model, which = "omega"),
       data,
-      est = estmethod
+      est = estmethod, 
+      control = ctrl(print = nprint)
     )
   } else {
     if (length(uniqueids) == 1) {
@@ -1292,10 +1295,11 @@ fit_pH_curve <- function(
     if (estmethod == "focei") {
       ctrl <- nlmixr2est::foceiControl(
         maxOuterIterations = 100,
-        maxInnerIterations = 100
+        maxInnerIterations = 100,
+        print = nprint
       )
     } else if (estmethod == "saem") {
-      ctrl <- nlmixr2est::saemControl()
+      ctrl <- nlmixr2est::saemControl(print = nprint)
     }
 
     finalFit <- nlmixr2est::nlmixr2(
