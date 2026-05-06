@@ -1337,7 +1337,7 @@ format_metrics_tab <- function(x) {
 
     gt::gt() |>
     gt::fmt_number(columns = everything(), decimals = 2) |>
-    gt::fmt_markdown(columns = "area_label") |>
+    gt::fmt_markdown(columns = c("area_label", "dur_label")) |>
     gt::cols_label(
       id = "ID",
       group = "Group",
@@ -1721,6 +1721,8 @@ pHMetrics_from_fit <- function(
   derivedDf <- run_direct_estimation(
     simRes,
     ph_threshold = ph_threshold,
+    time_start = time_start,
+    time_end = time_end,
     add_support_points = add_support_points
   ) |>
     as.data.frame()
