@@ -885,12 +885,6 @@ sim_to_pH_data <- function(x) {
   x
 }
 
-summarize_sim <- function(res) {
-  res |>
-    group_by(.data$id, .data$group) |>
-    summarize(aucUnderpH = max(auc), timeUnderpH = max(.data$time_under_pH))
-}
-
 
 plot_pkpd_curve <- function(res) {
   pkplot <- ggplot2::ggplot(
@@ -1556,7 +1550,7 @@ pHMetrics_from_fit <- function(
     }
     
     derivedDf <- derivedDf |> 
-      dplyr::group_by(.data$group, .data$auc) |>
+      dplyr::group_by(.data$group, .data$area_label) |>
       dplyr::summarize(across(dplyr::all_of(derived_summarize_cols), mean), .groups = "keep") |>
       dplyr::ungroup() |>
       dplyr::mutate(id = ".")
