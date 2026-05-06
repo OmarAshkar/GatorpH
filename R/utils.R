@@ -641,12 +641,12 @@ calc_time_under_pH <- function(x, ph_threshold = 5.4) {
   x |>
     dplyr::group_by(.data$id, .data$group) |>
     dplyr::summarise(
-      time_under_ph = time_under_ph_func(.data$time, .data$pH, ph_threshold)
+      time_under_pH = time_under_ph_func(.data$time, .data$pH, ph_threshold)
     ) |>
-    dplyr::mutate(start_time = .data$time_under_ph$start_time) |>
-    dplyr::mutate(end_time = .data$time_under_ph$end_time) |>
+    dplyr::mutate(start_time = .data$time_under_pH$start_time) |>
+    dplyr::mutate(end_time = .data$time_under_pH$end_time) |>
     dplyr::mutate(
-      time_under_ph = .data$end_time - .data$start_time
+      time_under_pH = .data$end_time - .data$start_time
     ) |>
     dplyr::ungroup() |>
     dplyr::distinct()
@@ -703,7 +703,8 @@ calc_area_under_pH <- function(
     ) |>
     dplyr::mutate(across(.cols = c("area_under_pH_no_interpolation", "area_under_pH"),
                   \(x) ifelse(x < 0, 0, x))) |>
-    dplyr::mutate(auc = paste0("AUC_", time_start, ",", time_end))
+    dplyr::mutate(area_label = paste0("Area < pH_{", ph_threshold, " \\{", time_start, ", ", time_end, "\\} }")) |>
+    dplyr::mutate(dur_label = paste0("T < pH_{", ph_threshold, "}"))
 }
 
 calc_pH_min <- function(x) {
@@ -887,7 +888,7 @@ sim_to_pH_data <- function(x) {
 summarize_sim <- function(res) {
   res |>
     group_by(.data$id, .data$group) |>
-    summarize(aucUnderpH = max(auc), timeUnderpH = max(time_under_ph))
+    summarize(aucUnderpH = max(auc), timeUnderpH = max(.data$time_under_pH))
 }
 
 
@@ -1171,17 +1172,52 @@ fit_pH_curve <- function(data, model,
 
   finalFit |> 
     dplyr::mutate(ID = as.numeric(as.character(.data$ID)))|>
-    # readd groups
-    dplyr::left_join(group_info, by = c("ID" = "id"))
+    # read groups
+    dplyr::left_join(group_info, by = c("ID" = "id")) |>
+    dplyr::rename(id = "ID")
 }
 
 fit_param_table <- function(fit) {
   fit$parFixed
 }
 
-fit_format_param_table <- function(fit) {
-  fit$parFixed
+format_metrics_tab <- function(x){
+
+  x <- x |> 
+    dplyr::select(-c("area_under_pH_no_interpolation", "start_time", "end_time")) |>
+    dplyr::mutate(area_label = paste0("$$", area_label, "$$")) |>
+    dplyr::mutate(dur_label = paste0("$$", dur_label, "$$")) |>
+
+    gt::gt() |> 
+    gt::fmt_number(columns = everything(), decimals = 2) |> 
+    gt::fmt_markdown(columns = "area_label") |>
+    gt::cols_label(
+      id = "ID",
+      group = "Group",
+      pH_min = "pH_{min}",
+      t_min = "T_{min}",
+      time_under_pH = "T < pH_{c}",
+      area_under_pH = "Area < pH_{c}",
+      area_label = "Area Label",
+      dur_label = "Duration Label",
+      dplyr::matches("ks") ~ "KS",
+      dplyr::matches("kd") ~ "KD",
+      dplyr::matches("kde") ~ "KDE",
+      dplyr::matches("edk50") ~ "EDK50",
+      dplyr::matches("gamma") ~ "Gamma",
+      .fn = \(x) gt::md(paste0("$$", x, "$$"))
+    ) 
+
+    x <- x |> 
+      gt::tab_spanner(label = "Model Parameters",
+                      columns = c(matches("ks"), matches("kd"), matches("kde"), matches("edk50"), matches("gamma"))) |> 
+      gt::tab_spanner(label = "pH Metrics", 
+                      columns = c("area_under_pH", "time_under_pH", "pH_min", "t_min"))
+
+    x 
+
 }
+
 
 #' Plot Observed vs Predicted pH
 #' @description Generates a plot of observed pH values versus predicted pH values from a fitted model, including a reference line for perfect predictions.
@@ -1206,11 +1242,11 @@ fit_obs_vs_ipred_plot <- function(fit) {
 #' @export
 fit_individual_plot <- function(fit) {
   as.data.frame(fit) |>
-    dplyr::mutate(ID = as.factor(ID)) |>
-    ggplot2::ggplot(aes(x = TIME, y = DV, color = ID)) +
+    dplyr::mutate(id = as.factor(id)) |>
+    ggplot2::ggplot(aes(x = TIME, y = DV, color = id)) +
     ggplot2::geom_point() +
     ggplot2::geom_line(aes(y = IPRED)) +
-    ggplot2::facet_wrap(~ID) +
+    ggplot2::facet_wrap(~id) +
     ggplot2::labs(x = "Time", y = "pH") +
     ggplot2::theme_minimal()
 }
@@ -1313,7 +1349,7 @@ pHMetrics_from_fit <- function(
   if(has_covariates){
     if(length(unique(x$origData$group_code)) > 1){
       icovDf <- as.data.frame(x) |> 
-        dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
+        dplyr::select("id", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
         dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
         tidyr::pivot_longer(cols = dplyr::starts_with("cov_"), 
           names_to = "covariate", values_to = "value") |>
@@ -1321,10 +1357,10 @@ pHMetrics_from_fit <- function(
         dplyr::distinct() |>
         tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
         dplyr::distinct() |>
-        dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
+        dplyr::mutate(id = as.numeric(as.character(.data$id)))
     } else {
       icovDf <- as.data.frame(x) |> 
-        dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
+        dplyr::select("id", dplyr::starts_with("group"), dplyr::starts_with("eta."), dplyr::starts_with("cov_")) |> 
         dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
         # add covariate manually 
         mutate(cov_ks = 0, cov_edk50 = 0, cov_kd = 0, cov_kde = 0, cov_gamma = 0) |>
@@ -1334,14 +1370,14 @@ pHMetrics_from_fit <- function(
         dplyr::distinct() |>
         tidyr::pivot_wider(names_from = "covariate", values_from = "value", values_fill = 0) |>
         dplyr::distinct() |>
-        dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
+        dplyr::mutate(id = as.numeric(as.character(.data$id)))
     }
   } else { # if no covariates, just get ID and group information
     icovDf <- as.data.frame(x) |> 
-      dplyr::select("ID", dplyr::starts_with("group"), dplyr::starts_with("eta.")) |> 
+      dplyr::select("id", dplyr::starts_with("group"), dplyr::starts_with("eta.")) |> 
       dplyr::mutate(group_code = factor_to_numeric(.data$group)) |>
       dplyr::distinct() |>
-      dplyr::mutate(ID = as.numeric(as.character(.data$ID))) 
+      dplyr::mutate(id = as.numeric(as.character(.data$id))) 
   }
 
   new_mod <- model |> rxode2::zeroRe(which = "sigma")
@@ -1378,7 +1414,7 @@ pHMetrics_from_fit <- function(
   }
 
   
-  ids <- as.numeric(as.character(unique(icovDf$ID)))
+  ids <- as.numeric(as.character(unique(icovDf$id)))
   ev <- rxode2::et(amt = dose, cmt = "depot", time = dose_time) |> # use dose_time here
     rxode2::et(time = time) |>
     rxode2::et(id = ids)
@@ -1405,7 +1441,7 @@ pHMetrics_from_fit <- function(
     )
     sim2 <- rxSolve(
       new_mod,
-      iCov = icovDf |> dplyr::filter(.data$ID %in% problematic_ids),
+      iCov = icovDf |> dplyr::filter(.data$id %in% problematic_ids),
       events = ev |> dplyr::filter(.data$id %in% problematic_ids)
     )
     # replace only the problematic ids with regenerated subjects
@@ -1430,10 +1466,9 @@ pHMetrics_from_fit <- function(
   
   # Get original groups from x$origData
   orig_groups <- icovDf |>
-    dplyr::select("ID", "group", "group_code") |>
+    dplyr::select("id", "group", "group_code") |>
     dplyr::distinct() |> 
-    dplyr::mutate(id = as.numeric(as.character(.data$ID))) |>
-    dplyr::select(-"ID")
+    dplyr::mutate(id = as.numeric(as.character(.data$id)))
   
   simRes <- simRes |>
     dplyr::select(-dplyr::starts_with("group"), -dplyr::starts_with("group_code")) |>
@@ -1474,26 +1509,25 @@ pHMetrics_from_fit <- function(
 
   derivedDf <- run_direct_estimation(simRes, ph_threshold = ph_threshold, 
     add_support_points = add_support_points) |> 
-    as.data.frame() |> 
-    dplyr::rename(ID = "id")
+    as.data.frame() 
 
   
   if(onlymean){ 
       derivedDf <- derivedDf |> 
         # replace actual id with placeholder
-        dplyr::mutate(ID = ifelse(onlymean, 
+        dplyr::mutate(id = ifelse(onlymean, 
         ".", 
-        as.numeric(as.character(.data$ID)))) 
+        as.numeric(as.character(.data$id)))) 
     }
 
   stopifnot(nrow(derivedDf) == nrow(icovDf))
 
   if(onlymean){
     paramsdf <- as.data.frame(x) |> 
-      dplyr::mutate(ID = ".")
+      dplyr::mutate(id = ".")
   } else {
     paramsdf <- as.data.frame(x) |> 
-      dplyr::mutate(ID = as.numeric(as.character(.data$ID)))
+      dplyr::mutate(id = as.numeric(as.character(.data$id)))
   }
 
   param_cols <- c("edk50", "kde", "kd", "ks")
@@ -1504,28 +1538,28 @@ pHMetrics_from_fit <- function(
   derivedDf <-  dplyr::left_join(
       derivedDf,
       paramsdf |>
-        dplyr::select(dplyr::all_of(c("ID", param_cols, "group"))) |>
-        dplyr::group_by(.data$ID, .data$group) |>
+        dplyr::select(dplyr::all_of(c("id", param_cols, "group"))) |>
+        dplyr::group_by(.data$id, .data$group) |>
         dplyr::summarize(across(dplyr::all_of(param_cols), mean), .groups = "keep") |>
         dplyr::ungroup() |>
         dplyr::distinct(),
-      by = c("ID" = "ID", "group" = "group")
+      by = c("id" = "id", "group" = "group")
     )
   
       
 
   if(onlymean){
-    derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation")
+    derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "pH_min", "t_min", "start_time", "end_time", "time_under_pH", "area_under_pH", "area_under_pH_no_interpolation")
 
     if ("gamma" %in% names(derivedDf)) {
-      derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "gamma", "pH_min", "t_min", "start_time", "end_time", "time_under_ph", "area_under_pH", "area_under_pH_no_interpolation")
+      derived_summarize_cols <- c("edk50", "kde", "kd", "ks", "gamma", "pH_min", "t_min", "start_time", "end_time", "time_under_pH", "area_under_pH", "area_under_pH_no_interpolation")
     }
     
     derivedDf <- derivedDf |> 
       dplyr::group_by(.data$group, .data$auc) |>
       dplyr::summarize(across(dplyr::all_of(derived_summarize_cols), mean), .groups = "keep") |>
       dplyr::ungroup() |>
-      dplyr::mutate(ID = ".")
+      dplyr::mutate(id = ".")
     stopifnot(nrow(derivedDf) == length(unique(x$origData$group_code)))
   } else{
     stopifnot(nrow(derivedDf) == length(unique(x$origData$id)))
@@ -1832,4 +1866,25 @@ remove_gamma <- function(model){
     rxode2::ini(t.gamma = fix) 
 
   model
+}
+
+
+theme_academic <- function(base_size = 18, base_family = "Arial") {
+    theme_classic(base_size = base_size, base_family = base_family) %+replace%
+    theme(
+        # Center and bold the title for clarity
+        plot.title = element_text(size = rel(1.2), face = "bold", hjust = 0.5, margin = margin(b = 10)),
+        # Enhance axis appearance
+        axis.title = element_text(size = rel(1.1), face = "bold"),
+        axis.text = element_text(size = rel(1.0), color = "black"),
+        axis.line = element_line(linewidth = 0.8, color = "black"),
+    
+        # Legend formatting
+        legend.title = element_text(size = rel(1.0), face = "bold"),
+        legend.text = element_text(size = rel(0.9)),
+        legend.position = "right",
+        # Remove any remaining clutter
+        panel.background = element_blank(),
+        plot.margin = margin(10, 10, 10, 10)
+    )
 }
