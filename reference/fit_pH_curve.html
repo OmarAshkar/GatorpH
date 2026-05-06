@@ -41,10 +41,11 @@
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fit_pH_curve</span><span class="op">(</span></span>
 <span>  <span class="va">data</span>,</span>
 <span>  <span class="va">model</span>,</span>
-<span>  <span class="va">amt</span>,</span>
 <span>  stratify <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  estmethod <span class="op">=</span> <span class="st">"focei"</span>,</span>
-<span>  dose_time <span class="op">=</span> <span class="fl">5</span></span>
+<span>  cov_params <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"kd"</span>, <span class="st">"kde"</span>, <span class="st">"edk50"</span>, <span class="st">"gamma"</span><span class="op">)</span>,</span>
+<span>  cov_fixedeffects <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"t.kd"</span>, <span class="st">"t.kde"</span>, <span class="st">"t.edk50"</span>, <span class="st">"t.gamma"</span><span class="op">)</span>,</span>
+<span>  include_gamma <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -60,10 +61,6 @@
 <dd><p>rxode2/nlmixr2 model to fit.</p></dd>
 
 
-<dt id="arg-amt">amt<a class="anchor" aria-label="anchor" href="#arg-amt"></a></dt>
-<dd><p>Dose amount to administer at time 0.</p></dd>
-
-
 <dt id="arg-stratify">stratify<a class="anchor" aria-label="anchor" href="#arg-stratify"></a></dt>
 <dd><p>Logical indicating whether to fit separate models for each group (default is FALSE).</p></dd>
 
@@ -72,8 +69,16 @@
 <dd><p>Estimation method to use (default is "focei").</p></dd>
 
 
-<dt id="arg-dose-time">dose_time<a class="anchor" aria-label="anchor" href="#arg-dose-time"></a></dt>
-<dd><p>Time (positive) of baseline to add before time 0 (default is 5).</p></dd>
+<dt id="arg-cov-params">cov_params<a class="anchor" aria-label="anchor" href="#arg-cov-params"></a></dt>
+<dd><p>Character vector of covariate parameters to include in the model (default is c("kd", "kde", "edk50", "gamma")).</p></dd>
+
+
+<dt id="arg-cov-fixedeffects">cov_fixedeffects<a class="anchor" aria-label="anchor" href="#arg-cov-fixedeffects"></a></dt>
+<dd><p>Character vector of fixed effect names corresponding to the covariate parameters (default is c("t.kd", "t.kde", "t.edk50", "t.gamma")).</p></dd>
+
+
+<dt id="arg-include-gamma">include_gamma<a class="anchor" aria-label="anchor" href="#arg-include-gamma"></a></dt>
+<dd><p>logical indicating whether to include the gamma parameter in the model (default is TRUE).</p></dd>
 
 </dl></div>
     <div class="section level2">

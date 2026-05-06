@@ -1,7 +1,8 @@
-# Integrate Area Under pH Threshold
+# Integrate Area Under pH Threshold Calculates the area under the pH curve below a specified pH threshold using the trapezoidal rule. It assumes the flipped shape
 
-Calculates the area under the pH curve below a specified pH threshold
-using the trapezoidal rule. It assumes the flipped shape
+Integrate Area Under pH Threshold Calculates the area under the pH curve
+below a specified pH threshold using the trapezoidal rule. It assumes
+the flipped shape
 
 ## Usage
 
@@ -13,7 +14,9 @@ integratepHArea(
   time_start = 0,
   time_end = 50,
   method = "linear",
-  interpolate = TRUE
+  interpolate = TRUE,
+  add_support_points = FALSE,
+  plot = FALSE
 )
 ```
 

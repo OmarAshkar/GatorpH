@@ -9,10 +9,11 @@ modeling. If \`stratify\` is TRUE, fits separate models for each group.
 fit_pH_curve(
   data,
   model,
-  amt,
   stratify = FALSE,
   estmethod = "focei",
-  dose_time = 5
+  cov_params = c("kd", "kde", "edk50", "gamma"),
+  cov_fixedeffects = c("t.kd", "t.kde", "t.edk50", "t.gamma"),
+  include_gamma = TRUE
 )
 ```
 
@@ -27,10 +28,6 @@ fit_pH_curve(
 
   rxode2/nlmixr2 model to fit.
 
-- amt:
-
-  Dose amount to administer at time 0.
-
 - stratify:
 
   Logical indicating whether to fit separate models for each group
@@ -40,9 +37,20 @@ fit_pH_curve(
 
   Estimation method to use (default is "focei").
 
-- dose_time:
+- cov_params:
 
-  Time (positive) of baseline to add before time 0 (default is 5).
+  Character vector of covariate parameters to include in the model
+  (default is c("kd", "kde", "edk50", "gamma")).
+
+- cov_fixedeffects:
+
+  Character vector of fixed effect names corresponding to the covariate
+  parameters (default is c("t.kd", "t.kde", "t.edk50", "t.gamma")).
+
+- include_gamma:
+
+  logical indicating whether to include the gamma parameter in the model
+  (default is TRUE).
 
 ## Value
 

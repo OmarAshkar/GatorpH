@@ -11,10 +11,10 @@ pHMetrics_from_fit(
   time_start = 0,
   time_end = 50,
   step = 0.1,
-  dose = 100,
-  onlymean = TRUE,
   plot = FALSE,
-  stratify_by = "None"
+  stratify_by = "None",
+  include_gamma = TRUE,
+  add_support_points = FALSE
 )
 ```
 
@@ -40,15 +40,6 @@ pHMetrics_from_fit(
 
   Time step for simulation.
 
-- dose:
-
-  Dose amount to administer at time 0.
-
-- onlymean:
-
-  Logical indicating whether to simulate only the mean profile (default
-  is TRUE).
-
 - plot:
 
   Logical indicating whether to plot the simulated pH profiles (default
@@ -57,6 +48,10 @@ pHMetrics_from_fit(
 - stratify_by:
 
   Stratification option for plotting ("None", "Subject", "Group").
+
+- dose:
+
+  Dose amount to administer at time 0.
 
 ## Value
 

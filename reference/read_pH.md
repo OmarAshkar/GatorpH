@@ -5,7 +5,7 @@ Reads pH data from a CSV or Excel file and performs basic validation.
 ## Usage
 
 ``` r
-read_pH(file_path, baseline = 7, baseline_time = -5)
+read_pH(file_path, dose_time = 1, amt = 100)
 ```
 
 ## Arguments
@@ -14,15 +14,13 @@ read_pH(file_path, baseline = 7, baseline_time = -5)
 
   Path to the data file.
 
-- baseline:
+- dose_time:
 
-  Baseline pH value to assign for each subject if not present in the
-  data (default is 7).
+  Time of dose administration (default is 1).
 
-- baseline_time:
+- amt:
 
-  Time of baseline to adjust time points (default is -5). If NULL, no
-  adjustment is made.
+  Dose amount (default is 100).
 
 ## Value
 

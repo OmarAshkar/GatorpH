@@ -11,7 +11,9 @@ run_direct_estimation(
   ph_threshold = 5.4,
   time_start = 0,
   time_end = 50,
-  method = "linear"
+  method = "linear",
+  add_support_points = FALSE,
+  use_baseline = TRUE
 )
 ```
 

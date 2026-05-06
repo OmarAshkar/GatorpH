@@ -11,7 +11,8 @@ plot_pH_time(
   ph_threshold = 5.4,
   show_id = TRUE,
   stratify_by = "None",
-  showAvg = FALSE
+  showAvg = FALSE,
+  showDosing = FALSE
 )
 ```
 
@@ -24,6 +25,26 @@ plot_pH_time(
 - ph_threshold:
 
   pH threshold to highlight on the plot (default is 5.4).
+
+- show_id:
+
+  Logical indicating whether to show subject IDs in the legend (default
+  is TRUE).
+
+- stratify_by:
+
+  Variable to stratify the plot by (default is "None"). Options are
+  "None", "Subject", or "Group".
+
+- showAvg:
+
+  Logical indicating whether to show the average pH curve across
+  subjects/groups (default is FALSE).
+
+- showDosing:
+
+  Logical indicating whether to show dosing times on the plot (default
+  is FALSE).
 
 ## Value
 
