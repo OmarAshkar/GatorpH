@@ -9,9 +9,9 @@ read_pH(file_path, dose_time = 1, amt = 100)
 \arguments{
 \item{file_path}{Path to the data file.}
 
-\item{baseline}{Baseline pH value to assign for each subject if not present in the data (default is 7).}
+\item{dose_time}{Time of dose administration (default is 1).}
 
-\item{baseline_time}{Time of baseline to adjust time points (default is -5). If NULL, no adjustment is made.}
+\item{amt}{Dose amount (default is 100).}
 }
 \value{
 A data frame containing the pH data.

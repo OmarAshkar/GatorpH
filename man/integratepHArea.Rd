@@ -2,7 +2,9 @@
 % Please edit documentation in R/utils.R
 \name{integratepHArea}
 \alias{integratepHArea}
-\title{Integrate Area Under pH Threshold}
+\title{Integrate Area Under pH Threshold
+Calculates the area under the pH curve below a specified pH threshold using the trapezoidal rule.
+It assumes the flipped shape}
 \usage{
 integratepHArea(
   x,
@@ -31,6 +33,7 @@ integratepHArea(
 Numeric value representing the area under the pH curve below the threshold.
 }
 \description{
+Integrate Area Under pH Threshold
 Calculates the area under the pH curve below a specified pH threshold using the trapezoidal rule.
 It assumes the flipped shape
 }

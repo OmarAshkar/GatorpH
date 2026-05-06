@@ -1,19 +1,3 @@
-
-#' KPD Model
-#' @description A kinetic-pharmacodynamic (KPD) model for pH response to drug administration, based on a virtual compartment representing drug elimination and its effect on pH. The model includes parameters for the dose producing 50% of the maximum effect (EDK50), the elimination rate constant from the virtual compartment (KDE), the first-order loss rate of response (KD), the maximum stimulatory effect on response (KS), and the Hill coefficient (gamma). The model also accounts for inter-individual variability in these parameters and includes an additive error term for the response.
-#' @param edk50 Numeric. Dose producing 50% of Emax (default is 10).
-#' @param kde Numeric. Elimination rate constant (1/h) from the virtual compartment KDE (default is 0.1).
-#' @param kd Numeric. First-order loss rate of response (default is 0.5).
-#' @param ks Numeric. Maximum stimulatory effect on response (default is 3.5).
-#' @param gamma Numeric. Hill coefficient (default is 1).
-#' @param eta.edk50 Numeric. Varianceof inter-individual variability for edk50 (default is 0.1).
-#' @param eta.kde Numeric. Variance of inter-individual variability for kde (default is 0.1).
-#' @param eta.kd Numeric. Variance of inter-individual variability for kd (default is 0.1).
-#' @param eta.ks Numeric. Variance of inter-individual variability for ks (default is 0.1).
-#' @param sigma_add Numeric. Additive error standard deviation for the response (default is 0.01).
-#' @return A rxode2 model object representing the KPD model.
-#' @author Omar I. Elashkar
-#' @export
 kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, 
     gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
@@ -69,22 +53,6 @@ kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5,
 }
 
 
-# Ooi parameterization
-#' KPD Model with Ooi Parameterization
-#' @description A kinetic-pharmacodynamic (KPD) model for pH response to drug administration, using the Ooi parameterization. This model includes parameters for the dose producing 50% of the maximum effect (EDK50), the elimination rate constant from the virtual compartment (KDE), the first-order loss rate of response (KD), the maximum stimulatory effect on response (KS), and the Hill coefficient (gamma). The model also accounts for inter-individual variability in these parameters and includes an additive error term for the response.
-#' @param edk50 Numeric. Dose producing 50% of Emax (default is 10).
-#' @param kde Numeric. Elimination rate constant (1/h) from the virtual compartment KDE (default is 0.1).
-#' @param kd Numeric. First-order loss rate of response (default is 0.5).
-#' @param ks Numeric. Maximum stimulatory effect on response (default is 3.5).
-#' @param gamma Numeric. Hill coefficient (default is 1).
-#' @param eta.edk50 Numeric. Variance of inter-individual variability for edk50 (default is 0.1).
-#' @param eta.kde Numeric. Variance of inter-individual variability for kde (default is 0.1).
-#' @param eta.kd Numeric. Variance of inter-individual variability for kd (default is 0.1).
-#' @param eta.ks Numeric. Variance of inter-individual variability for ks (default is 0.1).
-#' @param sigma_add Numeric. Additive error standard deviation for the response (default is 0.01).
-#' @return A rxode2 model object representing the KPD model with Ooi parameterization.
-#' @author Omar I. Elashkar
-#' @export 
 kpd_mod2 <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
     rxode2::ini({
@@ -126,54 +94,6 @@ kpd_mod2 <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, gamma = 1,
 
 }
 
-turnover_stim_breakdown_mod <- function(){
-    rxode2::ini({
-        # ---- PK PARAMETERS ----
-        ka = 1 # absorption rate constant (1/h)
-        kel = 0.5 # elimination rate constant (1/h)
-        V = fix(1.1) # volume of saliva (mL)
-
-        # ---- PD PARAMETERS ----
-        R0 = fix(7) # Baseline pH
-
-        t.kout = 0.1 # first-order loss rate of response
-
-        Emax = 0.6 # maximum stimulatory effect on breakdown
-
-        EC50 = 0.3 # concentration for 50% of Emax
-
-        sigma_add <- 0.01
-
-    })
-
-    rxode2::model({
-        kout <- t.kout
-        # ---- PK MODEL ----
-        d / dt(depot) = -ka * depot # Absorption from depot
-        d / dt(central) = ka * depot - kel * central # Elimination from central compartment
-        cp = central / V # Plasma concentration
-
-        # ---- PD MODEL ----
-        kin = R0 * kout # Zero-order production rate of response
-        resp(0) = R0 # Initial condition for response
-        d / dt(resp) = kin - kout * resp * (1 + Emax * cp / (EC50 + cp))
-
-        resp ~ add(sigma_add)
-
-        auc(0) = 0
-        # area under the curve below pH
-        if (resp < 5.4) {
-            d / dt(auc) = resp # accumulate AUC when below threshold
-        }
-
-        # time below pH
-        time_under_ph(0) = 0
-        if (resp < 5.4) {
-            d / dt(time_under_ph) = 0.1
-        }
-    })
-}
-
 
 getnoVarIds <- function(simRes){
   if(is.null(simRes$id)){
@@ -194,6 +114,7 @@ getnoVarIds <- function(simRes){
 
 #' Calculate AUC
 #' Linear to tmin, log after tmin
+#' @noRd
 get_auc_linear_down_log_up <- function(time, conc) {
   # Check input validity
   if (length(time) != length(conc)) {
@@ -283,8 +204,8 @@ check_time_varying <- function(x, group = "id", column){
 #' Read pH Data
 #' @description Reads pH data from a CSV or Excel file and performs basic validation.
 #' @param file_path Path to the data file.
-#' @param baseline Baseline pH value to assign for each subject if not present in the data (default is 7).
-#' @param baseline_time Time of baseline to adjust time points (default is -5). If NULL, no adjustment is made.
+#' @param dose_time Time of dose administration (default is 1).
+#' @param amt Dose amount (default is 100).
 #' @return A data frame containing the pH data.
 #' @author Omar I. Elashkar
 #' @export
@@ -509,6 +430,12 @@ check_crossing <- function(xtime, xph, ph_threshold = 5.4) {
 
 #' Check if first and last pH points passed as crossing the threshold
 #' Must have interpolated values for support
+#' @param xtime Vector of time points.
+#' @param xph Vector of pH values corresponding to the time points.
+#' @param ph_threshold pH threshold (default is 5.4).
+#' @return A logical vector of length 2 indicating whether the first and last points cross the threshold.
+#' @author Omar I. Elashkar
+#' @noRd
 check_below_threshold <- function(xtime, xph, ph_threshold = 5.4, start_time = 0, end_time = 50) {
 
   firstTimePoint <- find_closest(xtime, start_time, threshold = 0.2)
@@ -550,7 +477,7 @@ interpolate_pH <- function(xtime, xph) {
 }
 
 #' Integrate Area Under pH Threshold
-#' @description Calculates the area under the pH curve below a specified pH threshold using the trapezoidal rule.
+#' Calculates the area under the pH curve below a specified pH threshold using the trapezoidal rule.
 #' It assumes the flipped shape
 #' @param x Vector of time points.
 #' @param y Vector of pH values corresponding to the time points.
@@ -596,7 +523,7 @@ integratepHArea <- function(
   message("Crossing check: ", paste(check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold), collapse = ", "))
 
 
-  #' The method will add points exactly at the start and end times if there are any existing data points below the threshold plus no crossing with threshold at this time point
+  # The method will add points exactly at the start and end times if there are any existing data points below the threshold plus no crossing with threshold at this time point
   if(add_support_points){
     blwThreshold <- check_below_threshold(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold, start_time = time_start, end_time = time_end)
     checkCross <- check_crossing(tmpdata$time, tmpdata$pH, ph_threshold = ph_threshold)
@@ -659,12 +586,6 @@ integratepHArea <- function(
   res
 }
 
-#' Add support points to able to perform integration
-#' @param x Data frame containing pH data.
-#' @param threshold pH threshold for calculations.
-#' @param time_start Start time for area and time under pH calculation.
-#' @param time_end End time for area and time under pH calculation.
-#' 
 
 #' Calculate Time Under pH Threshold
 #' @description Calculates the total time each subject/group spends below a specified pH threshold.
@@ -786,7 +707,7 @@ rxensure <- function(mod) {
 #' @param model rxode2 model object representing the PK-PD model.
 #' @param time Vector of time points for simulation (default is seq(0, 50, by = 0.1)).
 #' @param dose Dose amount (default is 100).
-#' @param baseline_time Time of baseline to adjust time points (default is -5).
+#' @param dose_time Time of dose administration (default is 5).
 #' @param nsub Number of subjects to simulate (default is 1).
 #' @param baseline Baseline pH value. Default is 7. Must be either 1 or same number as number of subjects.
 #' @param step Time step for simulation (default is 0.1).
@@ -796,6 +717,7 @@ rxensure <- function(mod) {
 #' @param include_gamma logical indicating whether to include the gamma parameter in the simulation (default is TRUE).
 #' @return A data frame containing the simulated pH-time data.
 #' @author Omar I. Elashkar
+#' @noRd
 simulate_steph_curve <- function(
   model,
   time = seq(0, 50, by = 0.1),
@@ -1087,6 +1009,8 @@ digitizeread <- function(x) {
 #' @param model rxode2/nlmixr2 model to fit.
 #' @param stratify Logical indicating whether to fit separate models for each group (default is FALSE).
 #' @param estmethod Estimation method to use (default is "focei").
+#' @param cov_params Character vector of covariate parameters to include in the model (default is c("kd", "kde", "edk50", "gamma")).
+#' @param cov_fixedeffects Character vector of fixed effect names corresponding to the covariate parameters (default is c("t.kd", "t.kde", "t.edk50", "t.gamma")).
 #' @param include_gamma logical indicating whether to include the gamma parameter in the model (default is TRUE).
 #' @return nlmixr2 fit object.
 #' @author Omar I. Elashkar
@@ -1261,43 +1185,6 @@ fit_individual_plot <- function(fit) {
     ggplot2::facet_wrap(~ID) +
     ggplot2::labs(x = "Time", y = "pH") +
     ggplot2::theme_minimal()
-}
-
-
-
-#' Summarize Direct Estimation Results
-#' @description Provides summary statistics for direct estimation results.
-#' @param object Data frame containing direct estimation results with class 'QuantPH'.
-#' @return A data frame with summary statistics for AUC, time under pH threshold, minimum pH, and time to minimum pH.
-#' @author Omar I. Elashkar
-#' @method summary QuantPH
-#' @export
-summary.QuantPH <- function(object, ...) {
-  object |>
-    dplyr::group_by(.data$group) |>
-    dplyr::summarize(
-      mean_auc = mean(.data$area_under_pH, na.rm = TRUE),
-      median_auc = median(.data$area_under_pH, na.rm = TRUE),
-      min_auc = min(.data$area_under_pH, na.rm = TRUE),
-      max_auc = max(.data$area_under_pH, na.rm = TRUE),
-      sd_auc = sd(.data$area_under_pH, na.rm = TRUE),
-
-      mean_time_under_pH = mean(.data$time_under_pH, na.rm = TRUE),
-      median_time_under_pH = median(.data$time_under_pH, na.rm = TRUE),
-      min_time_under_pH = min(.data$time_under_pH, na.rm = TRUE),
-      max_time_under_pH = max(.data$time_under_pH, na.rm = TRUE),
-      sd_time_under_pH = sd(.data$time_under_pH, na.rm = TRUE),
-
-      mean_pH_min = mean(.data$pH_min, na.rm = TRUE),
-      median_pH_min = median(.data$pH_min, na.rm = TRUE),
-      min_pH_min = min(.data$pH_min, na.rm = TRUE),
-      max_pH_min = max(.data$pH_min, na.rm = TRUE),
-
-      mean_t_min = mean(.data$t_min, na.rm = TRUE),
-      median_t_min = median(.data$t_min, na.rm = TRUE),
-      min_t_min = min(.data$t_min, na.rm = TRUE),
-      max_t_min = max(.data$t_min, na.rm = TRUE),
-    )
 }
 
 
@@ -1710,9 +1597,9 @@ get_nsub <- function(x) {
 #' @param x A factor, character, or numeric vector.
 #' @return A numeric vector.
 #' @details
-#' - If input is numeric, returns as-is
-#' - If input is factor, converts to character then to numeric (preserving original numeric values)
-#' - If input is character, converts to factor then to numeric (assigning numeric codes to unique values)
+#' If input is numeric, returns as-is.
+#' If input is factor, converts to character then to numeric (preserving original numeric values).
+#' If input is character, converts to factor then to numeric (assigning numeric codes to unique values).
 #' @author Omar I. Elashkar
 #' @noRd
 factor_to_numeric <- function(x) {

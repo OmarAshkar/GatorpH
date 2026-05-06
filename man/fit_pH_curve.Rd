@@ -23,6 +23,10 @@ fit_pH_curve(
 
 \item{estmethod}{Estimation method to use (default is "focei").}
 
+\item{cov_params}{Character vector of covariate parameters to include in the model (default is c("kd", "kde", "edk50", "gamma")).}
+
+\item{cov_fixedeffects}{Character vector of fixed effect names corresponding to the covariate parameters (default is c("t.kd", "t.kde", "t.edk50", "t.gamma")).}
+
 \item{include_gamma}{logical indicating whether to include the gamma parameter in the model (default is TRUE).}
 }
 \value{

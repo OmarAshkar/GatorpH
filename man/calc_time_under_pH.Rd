@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{calc_time_under_pH}
 \alias{calc_time_under_pH}
-\title{Add support points to able to perform integration}
+\title{Calculate Time Under pH Threshold}
 \usage{
 calc_time_under_pH(x, ph_threshold = 5.4)
 }
@@ -10,14 +10,6 @@ calc_time_under_pH(x, ph_threshold = 5.4)
 \item{x}{Data frame containing pH data.}
 
 \item{ph_threshold}{pH threshold (default is 5.4).}
-
-\item{threshold}{pH threshold for calculations.}
-
-\item{time_start}{Start time for area and time under pH calculation.}
-
-\item{time_end}{End time for area and time under pH calculation.
-
-Calculate Time Under pH Threshold}
 }
 \value{
 A data frame with the total time under the pH threshold for each subject/group.
