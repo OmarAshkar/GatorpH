@@ -1791,7 +1791,7 @@ pHMetrics_from_fit <- function(
     }
 
     derivedDf <- derivedDf |>
-      dplyr::group_by(.data$group, .data$area_label) |>
+      dplyr::group_by(.data$group, .data$area_label, .data$dur_label) |>
       dplyr::summarize(
         across(dplyr::all_of(derived_summarize_cols), mean),
         .groups = "keep"
