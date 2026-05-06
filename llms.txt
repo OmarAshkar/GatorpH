@@ -29,6 +29,10 @@ The user interface of `GatorpH` can be accessed from
   : Integrate Area Under pH Threshold Calculates the area under the pH
   curve below a specified pH threshold using the trapezoidal rule. It
   assumes the flipped shape
+- [`kpd_mod()`](https://omarashkar.github.io/GatorpH/reference/kpd_mod.md)
+  : KPD Model
+- [`kpd_mod2()`](https://omarashkar.github.io/GatorpH/reference/kpd_mod2.md)
+  : KPD Model with Linear Parameterization
 - [`pHMetrics_from_fit()`](https://omarashkar.github.io/GatorpH/reference/pHMetrics_from_fit.md)
   : Get pH Metrics from NLME Fit
 - [`plot_pH_time()`](https://omarashkar.github.io/GatorpH/reference/plot_pH_time.md)
