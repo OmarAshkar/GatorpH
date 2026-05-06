@@ -1,3 +1,17 @@
+#' KPD Model
+#' @param edk50 Dose producing 50% of Emax (default is 10).
+#' @param kde Elimination rate constant (1/h) from the virtual compartment KDE (default is 0.1).
+#' @param kd Elimination rate constant (1/h) from the response compartment (default is 0.5).
+#' @param ks Zero-order production rate constant (default is 3.5).
+#' @param gamma Hill coefficient (default is 1).
+#' @param eta.edk50 Inter-individual variability (IIV) on edk50 (default is 0.1).
+#' @param eta.kde IIV on kde (default is 0.1).
+#' @param eta.kd IIV on kd (default is 0.1).
+#' @param eta.ks IIV on ks (default is 0.1).
+#' @param sigma_add Additive residual error (default is 0.01).
+#' @return An rxode2 model object representing the KPD model.
+#' @author Omar I. Elashkar
+#' @export
 kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, 
     gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
@@ -53,6 +67,20 @@ kpd_mod <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5,
 }
 
 
+#' KPD Model with Linear Parameterization
+#' @param edk50 Dose producing 50% of Emax (default is 10).
+#' @param kde Elimination rate constant (1/h) from the virtual compartment KDE (default is 0.1).
+#' @param kd Elimination rate constant (1/h) from the response compartment (default is 0.5).
+#' @param ks Zero-order production rate constant (default is 3.5).
+#' @param gamma Hill coefficient (default is 1).
+#' @param eta.edk50 Inter-individual variability (IIV) on edk50 (default is 0.1).
+#' @param eta.kde IIV on kde (default is 0.1).
+#' @param eta.kd IIV on kd (default is 0.1).
+#' @param eta.ks IIV on ks (default is 0.1).
+#' @param sigma_add Additive residual error (default is 0.01).
+#' @return An rxode2 model object representing the KPD model with linear parameterization.
+#' @author Omar I. Elashkar
+#' @export
 kpd_mod2 <- function(edk50 = 10, kde = 0.1, kd = 0.5, ks = 3.5, gamma = 1, 
     eta.edk50 = 0.1, eta.kde = 0.1, eta.kd = 0.1, eta.ks = 0.1, sigma_add = 0.01){
     rxode2::ini({
