@@ -258,13 +258,14 @@ test_that("integratepHArea with support Fadel", {
 })
 
 
+
 test_that("Igrashi", {
     dat <- read_pH(system.file("extdata", "Igrashi_copy.csv", package = "GatorpH"),  
         dose_time = 0)
 
     plot_pH_time(dat, showDosing = TRUE) |> expect_no_error()
 
-    res <- calc_area_under_pH(dat, ph_threshold = 5.5, method = "linear", add_support_points = TRUE)$area_under_pH
+    res <- calc_area_under_pH(dat, ph_threshold = 5.5, method = "linear", time_end = 20, add_support_points = TRUE)$area_under_pH
     expect_true(!is.na(res))
 
     

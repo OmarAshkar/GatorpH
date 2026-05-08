@@ -750,12 +750,17 @@ calc_area_under_pH <- function(
 
   x <- split_pH_data(x)[["0"]]
 
-  if (min(x$time) > time_start | max(x$time) < time_end) {
+  checkMinMax <- check_min_max(x)
+
+  min_time <- checkMinMax[1]
+  max_time <- checkMinMax[2]
+
+  if (min_time > time_start | max_time < time_end) {
     stop(paste(
       "Data does not cover the full integration interval. Consider adjusting time_start and time_end parameters to",
-      x$time[1],
+      round(min_time, 2),
       "and",
-      x$time[nrow(x)],
+      round(max_time, 2),
       "respectively."
     ))
   }
@@ -798,9 +803,9 @@ calc_area_under_pH <- function(
         "Area < pH_{",
         ph_threshold,
         " \\{",
-        time_start,
+        round(time_start, 2),
         ", ",
-        time_end,
+        round(time_end, 2),
         "\\} }"
       )
     ) |>
@@ -1093,7 +1098,7 @@ plot_pH_time <- function(
           length = ggplot2::unit(0.2, "cm"),
           ends = "last"
         ),
-        size = 1
+        linewidth = 1
       )
   }
 
@@ -2171,4 +2176,40 @@ theme_academic <- function(base_size = 18, base_family = "Arial") {
       panel.background = element_blank(),
       plot.margin = margin(10, 10, 10, 10)
     )
+}
+
+#' Calculate Observed vs Predicted Metrics
+#' @description Calculates metrics comparing observed values (DV) to predicted values (IPRED) from a fitted model, including Mean Absolute Percentage Error (MAPE), Root Mean Squared Error (RMSE), and Mean Absolute Error (MAE).
+#' @param fit A data frame containing at least the columns DV (observed values) and IPRED (predicted values).
+#' @return A data frame with calculated metrics: MAPE, RMSE, and MAE.
+#' @author Omar I. Elashkar
+#' @export
+fit_obs_metrics <- function(fit){
+  mape <- mean(abs(fit$DV - fit$IPRED) / abs(fit$DV), na.rm = TRUE)
+  rmse <- sqrt(mean((fit$DV - fit$IPRED)^2, na.rm = TRUE))
+  mae <- mean(abs(fit$DV - fit$IPRED), na.rm = TRUE)
+  r_squared <- 1 - sum((fit$DV - fit$IPRED)^2, na.rm = TRUE) / sum((fit$DV - mean(fit$DV, na.rm = TRUE))^2, na.rm = TRUE)
+  
+  data.frame(
+    MAPE = mape,
+    RMSE = rmse,
+    MAE = mae, 
+    R_squared = r_squared
+  )
+}
+
+
+check_min_max <- function(x){
+  check_min_max <- x |> 
+    dplyr::group_by(.data$id, .data$group) |>
+    dplyr::summarise(
+      min_time = min(.data$time, na.rm = TRUE),
+      max_time = max(.data$time, na.rm = TRUE),
+      .groups = "drop"
+    ) 
+    # find lastest min and earliest max across groups
+  min_time <- max(check_min_max$min_time, na.rm = TRUE)
+  max_time <- min(check_min_max$max_time, na.rm = TRUE)
+
+  c(min_time, max_time)
 }
