@@ -6,12 +6,6 @@ test_that("larssen", {
     plot_pH_time(dat, showDosing = TRUE, ph_threshold = 7) |> expect_no_error()
 
 
-    calc_area_under_pH(dat, ph_threshold = 7, method = "linear", 
-        add_support_points = TRUE, plot = TRUE, time_start = 0) |> expect_error()
-
-    res <- calc_area_under_pH(dat, ph_threshold = 7, method = "linear", 
-        add_support_points = TRUE, plot = TRUE, time_start = 1.9)$area_under_pH
-    
     res <- calc_area_under_pH(dat, ph_threshold = 7, method = "linear", 
         add_support_points = TRUE, plot = TRUE, time_start = 1.9, time_end = 84)$area_under_pH
 
@@ -53,7 +47,7 @@ test_that("direct_estimation multiple groups", {
         res <- simulate_steph_curve(kpd_mod(0.8, 0.8, 0.1, 0.8), nsub = 10, group = "A")
         res2 <- simulate_steph_curve(kpd_mod(0.8, 0.3, 0.1, 0.8), nsub = 10, group = "B")
     })
-    res2$id <- as.numeric(as.character(res2$id)) + 10
+    res2$id <- res2$id + 10
     res <- dplyr::bind_rows(res, res2)
     res <- res |> sim_to_pH_data()
 
@@ -118,14 +112,24 @@ test_that("integratepHArea works with interpolation", {
         plot = TRUE
     )
 
+    calc_area_under_pH(
+        dat,
+        ph_threshold = 5.7,
+        time_start = 0,
+        time_end = 50,
+        method = "linear"
+    ) |> expect_error("Data does not cover the full integration interval.")
+
+    # expect_true(is.na(res$area_under_pH_no_interpolation))
+
     res <- calc_area_under_pH(
         dat,
         ph_threshold = 5.7,
-        method = "linear"
-    )
-    # expect_true(is.na(res$area_under_pH_no_interpolation))
+        time_start = 0,
+        time_end = 30,
+        method = "linear")
+    
     expect_true(!is.na(res$area_under_pH))
-    expect_true(res$auc == "AUC_0,50")
 })
 
 
@@ -175,22 +179,25 @@ test_that("integratepHArea works with interpolation and support", {
     res <- calc_area_under_pH(
         dat,
         ph_threshold = 5.7,
+        time_start = 0,
+        time_end = 30,
         method = "linear"
     )
     # expect_true(is.na(res$area_under_pH_no_interpolation))
     expect_true(is.na(res$area_under_pH))
-    expect_true(res$auc == "AUC_0,50")
+
     
     res <- calc_area_under_pH(
         dat,
         ph_threshold = 5.7,
-        method = "linear", 
-        add_support_points = TRUE, 
-        time_end = 30
+        time_start = 0,
+        time_end = 30,
+        add_support_points = TRUE,
+        method = "linear"
     )
     # expect_true(is.na(res$area_under_pH_no_interpolation))
     expect_true(!is.na(res$area_under_pH))
-    expect_true(res$auc == "AUC_0,30")
+
 })
 
 

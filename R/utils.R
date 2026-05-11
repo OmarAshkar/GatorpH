@@ -35,7 +35,7 @@ kpd_mod <- function(
     eta.kde ~ eta.kde
     eta.kd ~ eta.kd
     eta.ks ~ eta.ks
-    eta.gamma ~ 0.1
+    eta.gamma ~ 0.0 # No IIV on Gamma
 
     sigma_add <- sigma_add
   })
@@ -112,7 +112,7 @@ kpd_mod2 <- function(
     eta.kde ~ eta.kde
     eta.kd ~ eta.kd
     eta.ks ~ eta.ks
-    eta.gamma ~ 0.1
+    eta.gamma ~ 0.0 # No IIV on Gamma
 
     sigma_add <- sigma_add
   })
@@ -1849,7 +1849,7 @@ curve_averaging <- function(
       ) |>
       dplyr::filter(!is.na(.data$y_new)) |> # Remove rows with NA values
       dplyr::ungroup() |>
-      dplyr::rename(pH = .data$y_new, time = .data$x_new)
+      dplyr::rename(pH = "y_new", time = "x_new")
   }
 
   avg_df <- df |>

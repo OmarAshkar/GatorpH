@@ -82,7 +82,7 @@ test_that("Naive pool single sub", {
         plot = TRUE
     )
     expect_true(pHdatMean$area_under_pH > 0)
-    expect_true(pHdatMean$ID == ".")
+    expect_true(pHdatMean$id == ".")
     expect_true(pHdatMean$group == "A")
     expect_true(pHdatMean$edk50 > 0)
     expect_true(pHdatMean$kde > 0)
@@ -132,7 +132,7 @@ test_that("Naive pool multiple subs, multiple groups", {
     )
     expect_true(nrow(pHdatMean) == 2)
     expect_true(all(pHdatMean$area_under_pH > 0))
-    expect_true(all(pHdatMean$ID == c(".", ".")))
+    expect_true(all(pHdatMean$id == c(".", ".")))
     expect_true(all(unique(pHdatMean$group) == c("A", "B")))
     expect_true(length(unique(pHdatMean$edk50)) == 2)
 })
@@ -142,7 +142,7 @@ test_that("NLME fit 1", {
         kpd_mod(0.8, 0.8, 0.1, 0.8, 1, 0.1, 0.1, 0.1, 0.1, 0.01),
         nsub = 30,
         baseline = rnorm(30, mean = 7, sd = 0.0),
-        baseline_time = -5,
+        dose_time = 1,
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
     )
@@ -153,17 +153,15 @@ test_that("NLME fit 1", {
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
     ) |> dplyr::mutate(group = "B", group_code = 2) |> 
-        dplyr::mutate(id = as.factor(as.numeric(as.character(id)) + 30))
+        dplyr::mutate(id = id + 30)
 
-    dat <- dplyr::bind_rows(dat, dat2)
+    dat <- dplyr::bind_rows(dat, dat2) |> sim_to_pH_data()
     plot_pH_time(dat, stratify_by = "Group")
 
     fit <- fit_pH_curve(
         dat,
         model = kpd_mod(0.8, 0.8, 0.1, 0.8, 1, 0.1, 0.1, 0.1, 0.1, 0.01),
-        amt = 100,
-        estmethod = "saem",
-        dose_time = 5
+        estmethod = "saem"
     )
 
     fit_individual_plot(fit) + ggplot2::facet_wrap(~group) 
@@ -183,7 +181,6 @@ test_that("NLME fit 1", {
             time_start = 0,
             time_end = 50,
             step = 0.1,
-            dose = 100,
             plot = TRUE
         )
     )
@@ -202,7 +199,6 @@ test_that("NLME fit 1", {
             time_start = 0,
             time_end = 50,
             step = 0.1,
-            dose = 100,
             plot = TRUE
         )
     )
@@ -240,10 +236,10 @@ test_that("NLME fit mean2", {
         ),
         nsub = 50,
         baseline = rnorm(50, mean = 7, sd = 0.0),
-        baseline_time = -5,
+        dose_time = 1,
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
-    )
+    ) |> sim_to_pH_data()
     plot_pH_time(dat, stratify_by = "Subject")
 
     fit <- fit_pH_curve(
@@ -260,9 +256,7 @@ test_that("NLME fit mean2", {
             0.1,
             0.01
         ),
-        amt = 100,
-        estmethod = "focei",
-        dose_time = 5
+        estmethod = "focei"
     )
     fit_individual_plot(fit)
 
@@ -279,7 +273,6 @@ test_that("NLME fit mean2", {
             time_start = 0,
             time_end = 50,
             step = 0.1,
-            dose = 100,
             plot = TRUE
         )
     )
@@ -306,10 +299,10 @@ test_that("NLME fit full2", {
         ),
         nsub = 50,
         baseline = rnorm(50, mean = 7, sd = 0.0),
-        baseline_time = -5,
+        dose_time = 1,
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE
-    )
+    ) |> sim_to_pH_data()
     plot_pH_time(dat, stratify_by = "Subject")
 
     fit <- fit_pH_curve(
@@ -326,9 +319,7 @@ test_that("NLME fit full2", {
             0.1,
             0.01
         ),
-        amt = 100,
-        estmethod = "focei",
-        dose_time = 5
+        estmethod = "focei"
     )
     fit_individual_plot(fit)
 
@@ -346,7 +337,6 @@ test_that("NLME fit full2", {
             time_start = 0,
             time_end = 50,
             step = 0.1,
-            dose = 100,
             plot = TRUE
         )
     )
@@ -431,9 +421,7 @@ test_that("fejeskov", {
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        amt = 100,
-        estmethod = "uobyqa",
-        dose_time = 0+0.01
+        estmethod = "uobyqa"
     )
 
     fit_individual_plot(fit)
@@ -444,7 +432,6 @@ test_that("fejeskov", {
             time_start = 0,
             time_end = 50,
             step = 0.1,
-            dose = 100,
             plot = TRUE
         )
     )
@@ -456,9 +443,7 @@ test_that("fejeskov", {
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        amt = 100,
         estmethod = "saem",
-        dose_time = 0+0.01,
         covmethod = "linFim"
     )
     fit_individual_plot(fit)
@@ -468,7 +453,6 @@ test_that("fejeskov", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE
     )
     expect_false(any(is.na(pHdatnlme$area_under_pH)))
@@ -484,16 +468,15 @@ test_that("remove_gamma", {
     dat <- simulate_steph_curve(
         kpd_mod(0.8, 0.8, 0.1, 0.8),
         nsub = 10,
-        baseline = 1,
+        dose_time = 1,
         time = c(0, 10, 15, 20, 30),
         ignoreBSV = FALSE, 
         include_gamma= FALSE
-    ) 
+    )  |> sim_to_pH_data()
 
     fit <- fit_pH_curve(
         dat,
         model = mod_no_gamma,
-        amt = 100,
         estmethod = "bobyqa",
         cov_params = "ks",
         cov_fixedeffects = "t.ks", 
@@ -505,7 +488,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE, 
         include_gamma = FALSE
     )  |> expect_no_error()
@@ -514,7 +496,6 @@ test_that("remove_gamma", {
     fit <- fit_pH_curve(
         dat,
         model = mod_no_gamma,
-        amt = 100,
         estmethod = "saem",
         cov_params = "ks",
         cov_fixedeffects = "t.ks", 
@@ -526,7 +507,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE, 
         include_gamma = FALSE
     )  |> expect_no_error()
@@ -543,9 +523,7 @@ test_that("remove_gamma", {
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        amt = 100,
         estmethod = "bobyqa",
-        dose_time = 5,
         cov_params = "ks",
         cov_fixedeffects = "t.ks",
         include_gamma = FALSE
@@ -557,7 +535,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE, 
         include_gamma = FALSE
     )
@@ -565,9 +542,7 @@ test_that("remove_gamma", {
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        amt = 100,
         estmethod = "saem",
-        dose_time = 5,
         cov_params = c(),
         cov_fixedeffects = c(),
         include_gamma = FALSE
@@ -578,7 +553,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        dose = 100,
         plot = TRUE, 
         include_gamma = FALSE
     )
