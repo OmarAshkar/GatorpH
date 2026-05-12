@@ -349,7 +349,7 @@ test_that("NLME fit full2", {
 })
 
 
-test_that("nlme birkhed", {
+test_that("nlme birkhed with gamma", {
     d <- read_pH(system.file(
         "extdata",
         "Birkhed1_copy.csv",
@@ -357,7 +357,7 @@ test_that("nlme birkhed", {
     ), dose_time = 0.5)
     plot_pH_time(d, stratify_by = "Subject", showDosing = TRUE)
 
-    # naive fit
+    # naive fit 
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
@@ -375,10 +375,11 @@ test_that("nlme birkhed", {
             ph_threshold = 6.5,
             time_start = 0,
             time_end = 50,
-            step = 0.1
+            step = 0.1,
+            include_gamma = TRUE
         )
     )
-    nrow(pHdatMean) |> expect_equal(2)
+    nrow(pHdatMean$derivedDf) |> expect_equal(2)
     expect_false(any(is.na(pHdatMean$derivedDf$area_under_pH)))
     expect_false(any(is.na(pHdatMean$derivedDf$edk50)))
 
@@ -388,14 +389,16 @@ test_that("nlme birkhed", {
         model = kpd_mod(),
         estmethod = "saem",
         cov_params = "ks",
-        cov_fixedeffects = "t.ks"
+        cov_fixedeffects = "t.ks", 
+        include_gamma = TRUE
     )
     pHdatnlme <- pHMetrics_from_fit(
         fit,
         ph_threshold = 6.5,
         time_start = 0,
         time_end = 50,
-        step = 0.1
+        step = 0.1,
+        include_gamma = TRUE
     )
 
     expect_false(any(is.na(pHdatnlme$derivedDf$area_under_pH)))
@@ -518,13 +521,13 @@ test_that("remove_gamma", {
         include_gamma = FALSE
     )
 
+    fit$objDf
     pHdatnlme <- pHMetrics_from_fit(
         fit,
         ph_threshold = 6.5,
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        plot = TRUE, 
         include_gamma = FALSE
     )
 
@@ -536,7 +539,8 @@ test_that("remove_gamma", {
         cov_fixedeffects = c(),
         include_gamma = FALSE
     )
-    pHdatnlme <- pHMetrics_from_fit(
+    
+    pHdatnlme <- pHMetrics_ fsrom_fit(
         fit,
         ph_threshold = 6.5,
         time_start = 0,

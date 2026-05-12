@@ -1311,7 +1311,8 @@ fit_pH_curve <- function(
       model,
       data,
       est = estmethod,
-      control = ctrl
+      control = ctrl,
+      table=nlmixr2est::tableControl(cwres=TRUE)
     )
   }
 
@@ -1463,9 +1464,10 @@ run_direct_estimation <- function(
 #' @param time_end End time for simulation.
 #' @param step Time step for simulation.
 #' @param dose Dose amount to administer at time 0.
-#' @param plot Logical indicating whether to plot the simulated pH profiles (default is FALSE).
 #' @param ph_threshold pH threshold for calculations (default is 5.4).
 #' @param stratify_by Stratification option for plotting ("None", "Subject", "Group").
+#' @param include_gamma Logical indicating whether to include the gamma parameter in the simulation (default is TRUE).
+#' @param add_support_points Logical indicating whether to add support points for AUC calculation (default is FALSE).
 #' @return A data frame containing pH metrics calculated from the simulated pH profiles.
 #' @author Omar I. Elashkar
 #' @export
@@ -1476,7 +1478,7 @@ pHMetrics_from_fit <- function(
   time_end = 50,
   step = 0.1,
   stratify_by = "None",
-  include_gamma = TRUE,
+  include_gamma = TRUE, # not used, legacy
   add_support_points = FALSE
 ) {
   checkmate::assertClass(x, "nlmixr2FitCore")
@@ -1615,16 +1617,15 @@ pHMetrics_from_fit <- function(
       dplyr::distinct()
   }
 
-  if (!include_gamma) {
-    icovDf <- icovDf |>
-      dplyr::mutate(eta.gamma = 0)
-  }
+  # eta.gamma will always be zero for interpretability
+  #if (!include_gamma) {
+  icovDf <- icovDf |>
+    dplyr::mutate(eta.gamma = 0)
 
   ids <- as.numeric(as.character(unique(icovDf$id)))
   ev <- rxode2::et(amt = dose, cmt = "depot", time = dose_time) |> # use dose_time here
     rxode2::et(time = time) |>
     rxode2::et(id = ids)
-
   simRes <- rxSolve(
     new_mod,
     iCov = icovDf, # TODO add flowrate, buffering, substance
@@ -1705,17 +1706,17 @@ pHMetrics_from_fit <- function(
       )
     )
 
-  if (!onlymean) {
+  # if (!onlymean) {
     originalData <- nlme::getData(x) |> dplyr::filter(.data$evid == 0)
     plt <- plt +
       ggplot2::geom_point(
         data = originalData,
         aes(x = .data$time, y = .data$DV),
         color = "red",
-        size = 1,
+        size = 2,
         shape = 4
       )
-  }
+  # } 
 
   derivedDf <- run_direct_estimation(
     simRes,
@@ -2183,12 +2184,21 @@ theme_academic <- function(base_size = 18, base_family = "Arial") {
 #' @author Omar I. Elashkar
 #' @export
 fit_obs_metrics <- function(fit){
+  fitdf <- fit$objDf
+
+  aic <- fitdf[["AIC"]]
+  bic <- fitdf[["BIC"]]
+  obj <- fitdf[["OBJF"]]
+
   mape <- mean(abs(fit$DV - fit$IPRED) / abs(fit$DV), na.rm = TRUE)
   rmse <- sqrt(mean((fit$DV - fit$IPRED)^2, na.rm = TRUE))
   mae <- mean(abs(fit$DV - fit$IPRED), na.rm = TRUE)
   r_squared <- 1 - sum((fit$DV - fit$IPRED)^2, na.rm = TRUE) / sum((fit$DV - mean(fit$DV, na.rm = TRUE))^2, na.rm = TRUE)
   
   data.frame(
+    AIC = aic,
+    BIC = bic,
+    OBJF = obj,
     MAPE = mape,
     RMSE = rmse,
     MAE = mae, 
