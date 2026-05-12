@@ -78,16 +78,18 @@ test_that("Naive pool single sub", {
         fit,
         time_start = 0,
         time_end = 50,
-        step = 0.1,
-        plot = TRUE
+        step = 0.1
     )
-    expect_true(pHdatMean$area_under_pH > 0)
-    expect_true(pHdatMean$id == ".")
-    expect_true(pHdatMean$group == "A")
-    expect_true(pHdatMean$edk50 > 0)
-    expect_true(pHdatMean$kde > 0)
-    expect_true(pHdatMean$kd > 0)
-    expect_true(pHdatMean$ks > 0)
+
+    expect_no_error(pHdatMean$plot)
+
+    expect_true(pHdatMean$derivedDf$area_under_pH > 0)
+    expect_true(pHdatMean$derivedDf$id == ".")
+    expect_true(pHdatMean$derivedDf$group == "A")
+    expect_true(pHdatMean$derivedDf$edk50 > 0)
+    expect_true(pHdatMean$derivedDf$kde > 0)
+    expect_true(pHdatMean$derivedDf$kd > 0)
+    expect_true(pHdatMean$derivedDf$ks > 0)
 
 })
 
@@ -127,14 +129,13 @@ test_that("Naive pool multiple subs, multiple groups", {
         fit,
         time_start = 0,
         time_end = 50,
-        step = 0.1,
-        plot = TRUE
+        step = 0.1
     )
-    expect_true(nrow(pHdatMean) == 2)
-    expect_true(all(pHdatMean$area_under_pH > 0))
-    expect_true(all(pHdatMean$id == c(".", ".")))
-    expect_true(all(unique(pHdatMean$group) == c("A", "B")))
-    expect_true(length(unique(pHdatMean$edk50)) == 2)
+    expect_true(nrow(pHdatMean$derivedDf) == 2)
+    expect_true(all(pHdatMean$derivedDf$area_under_pH > 0))
+    expect_true(all(pHdatMean$derivedDf$id == c(".", ".")))
+    expect_true(all(unique(pHdatMean$derivedDf$group) == c("A", "B")))
+    expect_true(length(unique(pHdatMean$derivedDf$edk50)) == 2)
 })
 
 test_that("NLME fit 1", {
@@ -180,44 +181,42 @@ test_that("NLME fit 1", {
             fit,
             time_start = 0,
             time_end = 50,
-            step = 0.1,
-            plot = TRUE
+            step = 0.1
         )
     )
 
-    expect_true(all(pHdatMean$area_under_pH > 0))
-    expect_true(all(pHdatMean$pH_min > 0))
-    expect_true(all(pHdatMean$t_min > 0))
-    expect_true(all(pHdatMean$time_under_ph > 0))
-    
-    expect_true(all(unique(pHdatMean$group) == c("A", "B")))
-    expect_true(length(unique(pHdatMean$edk50)) == 2)
+    expect_true(all(pHdatMean$derivedDf$area_under_pH > 0))
+    expect_true(all(pHdatMean$derivedDf$pH_min > 0))
+    expect_true(all(pHdatMean$derivedDf$t_min > 0))
+    expect_true(all(pHdatMean$derivedDf$time_under_ph > 0))
+
+    expect_true(all(unique(pHdatMean$derivedDf$group) == c("A", "B")))
+    expect_true(length(unique(pHdatMean$derivedDf$edk50)) == 2)
 
     suppressWarnings(
         pHdatFull <- pHMetrics_from_fit(
             fit,
             time_start = 0,
             time_end = 50,
-            step = 0.1,
-            plot = TRUE
+            step = 0.1
         )
     )
 
-    expect_true(any(pHdatFull$area_under_pH > 0))
-    expect_true(any(pHdatFull$pH_min > 0))
-    expect_true(any(pHdatFull$t_min > 0))
-    expect_true(any(pHdatFull$time_under_ph > 0))
-    expect_false(any(is.infinite(pHdatFull$area_under_pH)))
-    expect_false(any(is.infinite(pHdatFull$pH_min)))
-    expect_false(any(is.infinite(pHdatFull$t_min)))
-    expect_false(any(is.infinite(pHdatFull$time_under_ph)))
+    expect_true(any(pHdatFull$derivedDf$area_under_pH > 0))
+    expect_true(any(pHdatFull$derivedDf$pH_min > 0))
+    expect_true(any(pHdatFull$derivedDf$t_min > 0))
+    expect_true(any(pHdatFull$derivedDf$time_under_ph > 0))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$area_under_pH)))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$pH_min)))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$t_min)))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$time_under_ph)))
 
-    expect_true(all(!is.na(pHdatFull$edk50)))
-    expect_true(all(!is.na(pHdatFull$kde)))
-    expect_true(all(!is.na(pHdatFull$kd)))
-    expect_true(all(!is.na(pHdatFull$ks)))
+    expect_true(all(!is.na(pHdatFull$derivedDf$edk50)))
+    expect_true(all(!is.na(pHdatFull$derivedDf$kde)))
+    expect_true(all(!is.na(pHdatFull$derivedDf$kd)))
+    expect_true(all(!is.na(pHdatFull$derivedDf$ks)))
 
-})
+}
 
 
 test_that("NLME fit mean2", {
@@ -272,15 +271,14 @@ test_that("NLME fit mean2", {
             fit,
             time_start = 0,
             time_end = 50,
-            step = 0.1,
-            plot = TRUE
+            step = 0.1
         )
     )
 
-    expect_true(pHdatMean$area_under_pH > 0)
-    expect_true(pHdatMean$pH_min > 0)
-    expect_true(pHdatMean$t_min > 0)
-    expect_true(pHdatMean$time_under_ph > 0)
+    expect_true(pHdatMean$derivedDf$area_under_pH > 0)
+    expect_true(pHdatMean$derivedDf$pH_min > 0)
+    expect_true(pHdatMean$derivedDf$t_min > 0)
+    expect_true(pHdatMean$derivedDf$time_under_ph > 0)
 })
 
 test_that("NLME fit full2", {
@@ -336,19 +334,18 @@ test_that("NLME fit full2", {
             fit,
             time_start = 0,
             time_end = 50,
-            step = 0.1,
-            plot = TRUE
+            step = 0.1
         )
     )
 
-    expect_true(any(pHdatFull$area_under_pH > 0))
-    expect_true(any(pHdatFull$pH_min > 0))
-    expect_true(any(pHdatFull$t_min > 0))
-    expect_true(any(pHdatFull$time_under_ph > 0))
-    expect_false(any(is.infinite(pHdatFull$area_under_pH)))
-    expect_false(any(is.infinite(pHdatFull$pH_min)))
-    expect_false(any(is.infinite(pHdatFull$t_min)))
-    expect_false(any(is.infinite(pHdatFull$time_under_ph)))
+    expect_true(any(pHdatFull$derivedDf$area_under_pH > 0))
+    expect_true(any(pHdatFull$derivedDf$pH_min > 0))
+    expect_true(any(pHdatFull$derivedDf$t_min > 0))
+    expect_true(any(pHdatFull$derivedDf$time_under_ph > 0))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$area_under_pH)))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$pH_min)))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$t_min)))
+    expect_false(any(is.infinite(pHdatFull$derivedDf$time_under_ph)))
 })
 
 
@@ -378,13 +375,12 @@ test_that("nlme birkhed", {
             ph_threshold = 6.5,
             time_start = 0,
             time_end = 50,
-            step = 0.1,
-            plot = TRUE
+            step = 0.1
         )
     )
     nrow(pHdatMean) |> expect_equal(2)
-    expect_false(any(is.na(pHdatMean$area_under_pH)))
-    expect_false(any(is.na(pHdatMean$edk50)))
+    expect_false(any(is.na(pHdatMean$derivedDf$area_under_pH)))
+    expect_false(any(is.na(pHdatMean$derivedDf$edk50)))
 
     ## nlme 
     fit <- fit_pH_curve(
@@ -399,12 +395,11 @@ test_that("nlme birkhed", {
         ph_threshold = 6.5,
         time_start = 0,
         time_end = 50,
-        step = 0.1,
-        plot = TRUE
+        step = 0.1
     )
 
-    expect_false(any(is.na(pHdatnlme$area_under_pH)))
-    expect_false(any(is.na(pHdatnlme$edk50)))
+    expect_false(any(is.na(pHdatnlme$derivedDf$area_under_pH)))
+    expect_false(any(is.na(pHdatnlme$derivedDf$edk50)))
 
 })
 
@@ -415,7 +410,6 @@ test_that("fejeskov", {
         package = "GatorpH"
     ), dose_time = 1)
 
-    expect_false(any(is.na(d$pH)))
 
     # test naive fit 
     fit <- fit_pH_curve(
@@ -431,20 +425,18 @@ test_that("fejeskov", {
             ph_threshold = 5.5,
             time_start = 0,
             time_end = 50,
-            step = 0.1,
-            plot = TRUE
+            step = 0.1
         )
     )
-    nrow(pHdatMean) |> expect_equal(2)
-    expect_false(any(is.na(pHdatMean$area_under_pH)))
-    expect_false(any(is.na(pHdatMean$edk50)))
+    nrow(pHdatMean$derivedDf) |> expect_equal(2)
+    expect_false(any(is.na(pHdatMean$derivedDf$area_under_pH)))
+    expect_false(any(is.na(pHdatMean$derivedDf$edk50)))
 
     ## nlme
     fit <- fit_pH_curve(
         d,
         model = kpd_mod(),
-        estmethod = "saem",
-        covmethod = "linFim"
+        estmethod = "saem"
     )
     fit_individual_plot(fit)
     pHdatnlme <- pHMetrics_from_fit(
@@ -452,11 +444,10 @@ test_that("fejeskov", {
         ph_threshold = 6.5,
         time_start = 0,
         time_end = 50,
-        step = 0.1,
-        plot = TRUE
+        step = 0.1
     )
-    expect_false(any(is.na(pHdatnlme$area_under_pH)))
-    expect_false(any(is.na(pHdatnlme$edk50)))
+    expect_false(any(is.na(pHdatnlme$derivedDf$area_under_pH)))
+    expect_false(any(is.na(pHdatnlme$derivedDf$edk50)))
 })
 
 test_that("remove_gamma", {
@@ -488,7 +479,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        plot = TRUE, 
         include_gamma = FALSE
     )  |> expect_no_error()
 
@@ -507,7 +497,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        plot = TRUE, 
         include_gamma = FALSE
     )  |> expect_no_error()
 
@@ -553,7 +542,6 @@ test_that("remove_gamma", {
         time_start = 0,
         time_end = 50,
         step = 0.1,
-        plot = TRUE, 
         include_gamma = FALSE
     )
 

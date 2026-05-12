@@ -5,7 +5,7 @@ test_that("simulation single baseline", {
     baseline = 7,
     time = c(0, 5, 10, 15, 20, 30),
     dose = 100,
-    baseline_time = -5,
+    dose_time = 0.5,
     ignoreBSV = FALSE
   )
 
@@ -23,9 +23,9 @@ test_that("simulation multiple baseline", {
     baseline = baseline_vec,
     time = c(0, 5, 10, 15, 20, 30),
     dose = 100,
-    baseline_time = -5,
+    dose_time = 0.5,
     ignoreBSV = FALSE
-  )
+  ) |> sim_to_pH_data()
   plot_pH_time(dat)
 
   phvals <- dat |> dplyr::filter(time == 0) |> dplyr::pull(pH)

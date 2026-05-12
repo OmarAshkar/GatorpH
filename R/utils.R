@@ -1475,7 +1475,6 @@ pHMetrics_from_fit <- function(
   time_start = 0,
   time_end = 50,
   step = 0.1,
-  plot = FALSE,
   stratify_by = "None",
   include_gamma = TRUE,
   add_support_points = FALSE
@@ -1691,36 +1690,31 @@ pHMetrics_from_fit <- function(
   stopifnot(length(unique(simRes$group)) == length(unique(x$origData$group)))
   stopifnot(unique(simRes$group) == unique(x$origData$group))
 
-  if (plot) {
-    plt <- plot_pH_time(
-      simRes,
-      show_id = FALSE,
-      stratify_by = stratify_by,
-      ph_threshold = ph_threshold,
-      showDosing = TRUE
-    ) +
-      labs(
-        subtitle = paste0(
-          ifelse(onlymean, "Mean Profile", "Individual Profiles"),
-          " from method ",
-          estMethod
-        )
+  plt <- plot_pH_time(
+    simRes,
+    show_id = FALSE,
+    stratify_by = stratify_by,
+    ph_threshold = ph_threshold,
+    showDosing = TRUE
+  ) +
+    labs(
+      subtitle = paste0(
+        ifelse(onlymean, "Mean Profile", "Individual Profiles"),
+        " from method ",
+        estMethod
       )
-    if (!onlymean) {
-      originalData <- nlme::getData(x) |> dplyr::filter(.data$evid == 0)
-      plt <- plt +
-        ggplot2::geom_point(
-          data = originalData,
-          aes(x = .data$time, y = .data$DV),
-          color = "red",
-          size = 1,
-          shape = 4
-        )
-    }
+    )
 
-    print(plt)
-  } else {
-    plt <- NA
+  if (!onlymean) {
+    originalData <- nlme::getData(x) |> dplyr::filter(.data$evid == 0)
+    plt <- plt +
+      ggplot2::geom_point(
+        data = originalData,
+        aes(x = .data$time, y = .data$DV),
+        color = "red",
+        size = 1,
+        shape = 4
+      )
   }
 
   derivedDf <- run_direct_estimation(
@@ -1815,7 +1809,11 @@ pHMetrics_from_fit <- function(
   }
   stopifnot(sort(unique(derivedDf$group)) == sort(unique(x$origData$group)))
 
-  derivedDf
+  list(
+    derivedDf = derivedDf,
+    simRes = simRes,
+    plot = plt
+  )
 }
 
 curve_averaging <- function(
