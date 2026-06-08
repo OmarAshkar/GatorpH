@@ -800,7 +800,7 @@ calc_area_under_pH <- function(
     )) |>
     dplyr::mutate(
       area_label = paste0(
-        "Area < pH_{",
+        "Area \\lt pH_{",
         ph_threshold,
         " \\{",
         round(time_start, 2),
@@ -809,7 +809,7 @@ calc_area_under_pH <- function(
         "\\} }"
       )
     ) |>
-    dplyr::mutate(dur_label = paste0("T < pH_{", ph_threshold, "}"))
+    dplyr::mutate(dur_label = paste0("T \\lt pH_{", ph_threshold, "}"))
 }
 
 calc_pH_min <- function(x) {
@@ -1263,8 +1263,9 @@ fit_pH_curve <- function(
     )
   }
 
-  if (estmethod %in% c("bobyqa", "uobyqa", "fo", "foce", "focei")) {
-    ctrl <- eval(parse(text=paste0("nlmixr2est::", estmethod, "Control", sep = "")))
+  ctrl <- eval(parse(text=paste0("nlmixr2est::", estmethod, "Control", sep = "")))
+
+  if (estmethod %in% c("bobyqa", "uobyqa")) {
     finalFit <- nlmixr2est::nlmixr2(
       zeroRe(model, which = "omega"),
       data,
@@ -1333,26 +1334,25 @@ fit_param_table <- function(fit) {
 #' @return A gt table object representing the formatted pH metrics table.
 #' @author Omar I. Elashkar
 #' @export
-format_metrics_tab <- function(x) {
+format_metrics_tab <- function(x, rowname_col = NULL) {
   x <- x |>
     dplyr::select(
-      -c("area_under_pH_no_interpolation", "start_time", "end_time")
+      -c(dplyr::matches("area_under_pH_no_interpolation"), dplyr::matches("start_time"), dplyr::matches("end_time"))
     ) |>
-    dplyr::mutate(area_label = paste0("$$", area_label, "$$")) |>
-    dplyr::mutate(dur_label = paste0("$$", dur_label, "$$")) |>
+    dplyr::mutate(dplyr::across(c(dplyr::matches("area_label"), dplyr::matches("dur_label")), \(x) paste0("$$",x,"$$"))) |>
 
-    gt::gt() |>
+    gt::gt(rowname_col = rowname_col) |>
     gt::fmt_number(columns = everything(), decimals = 2) |>
-    gt::fmt_markdown(columns = c("area_label", "dur_label")) |>
+    gt::fmt_markdown(columns = c(dplyr::matches("area_label"), dplyr::matches("dur_label"))) |>
     gt::cols_label(
-      id = "ID",
-      group = "Group",
+      dplyr::matches("id") ~ "ID",
+      dplyr::matches("group") ~ "Group",
       pH_min = "pH_{min}",
       t_min = "T_{min}",
-      time_under_pH = "T < pH_{c}",
-      area_under_pH = "Area < pH_{c}",
-      area_label = "Area Label",
-      dur_label = "Duration Label",
+      time_under_pH = "T \\lt pH_{c}",
+      area_under_pH = "Area \\lt pH_{c}",
+      dplyr::matches("area_label") ~ "Area Label",
+      dplyr::matches("dur_label") ~ "Duration Label",
       dplyr::matches("ks") ~ "KS",
       dplyr::matches("kd") ~ "KD",
       dplyr::matches("kde") ~ "KDE",
